@@ -3,8 +3,8 @@
 // =============================================
 
 // ── НАСТРОЙКИ API ─────────────────────────────
-// Измени этот адрес если порт отличается!
-const API_BASE = 'http://100.88.186.55:5091';
+const API_BASE = 'https://hotelbookingapi-production-437c.up.railway.app';
+
 // ── СОСТОЯНИЕ ПРИЛОЖЕНИЯ ──────────────────────
 let authToken    = null;   // JWT токен после логина
 let currentUser  = null;   // { guestId, firstName, lastName, email }
@@ -85,7 +85,6 @@ function showError(msg) {
 }
 
 function showSuccess(msg) {
-  // Простой toast — можно заменить на красивый
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#22c55e;color:white;padding:10px 20px;border-radius:20px;z-index:9999;font-weight:600;font-size:14px';
   toast.textContent = '✓ ' + msg;
@@ -135,7 +134,6 @@ function authHeaders() {
 
 // ── РЕГИСТРАЦИЯ ───────────────────────────────
 async function doRegister() {
-  // Собираем поля со страницы register
   const inputs = document.querySelectorAll('#page-register input[type="text"], #page-register input[type="email"], #page-register input[type="password"]');
   const fullName = inputs[0]?.value.trim() || '';
   const email    = inputs[1]?.value.trim() || '';
@@ -151,7 +149,6 @@ async function doRegister() {
   const nameParts = fullName.split(' ');
   const firstName = nameParts[0] || fullName;
   const lastName  = nameParts.slice(1).join(' ') || 'User';
-  // Генерируем уникальный username из email
   const username = email.split('@')[0] + '_' + Date.now().toString().slice(-4);
 
   try {
@@ -160,7 +157,7 @@ async function doRegister() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         firstName, lastName,
-        idnp: '0000000000000',  // заглушка — в реальном приложении добавить поле
+        idnp: '0000000000000',
         email, phone: '000000000',
         username, password
       })
@@ -233,11 +230,9 @@ function renderHotelsExplore(hotels) {
   const container = document.querySelector('#page-explore .page-scroll');
   if (!container) return;
 
-  // Сохраняем шапку (searchbar + section-header)
   const searchBar     = container.querySelector('.search-bar');
   const sectionHeader = container.querySelector('.section-header');
 
-  // Удаляем старые карточки
   container.querySelectorAll('.hotel-card-big').forEach(c => c.remove());
 
   hotels.slice(0, 5).forEach(h => {
@@ -267,12 +262,10 @@ function renderHotelsExplore(hotels) {
         </div>
       </div>`;
     container.appendChild(card);
-    // Set bg with jpg/png fallback
     const bgEl = card.querySelector(`.hotel-bg-${h.hotelId}`);
     if (bgEl) setHotelBg(bgEl, h.nazvanie || h.name);
   });
 
-  // Re-bind fav buttons
   bindFavButtons();
 }
 
@@ -329,7 +322,6 @@ async function loadSearchHotels(query = '') {
 function openHotelDetail(hotel) {
   selectedHotel = hotel;
 
-  // Обновляем данные на странице hotel
   const nameEl  = document.querySelector('.hotel-detail-name');
   const locEl   = document.querySelector('.hotel-detail-loc');
   const priceEl = document.querySelector('.res-price');
@@ -340,7 +332,6 @@ function openHotelDetail(hotel) {
   if (priceEl) priceEl.textContent = `$${hotel.priceStandard || hotel.price_standard} / night`;
   if (heroEl)  setHotelBg(heroEl, hotel.nazvanie || hotel.name);
 
-  // Обновляем блок цен
   const resBox = document.querySelector('.reservation-box');
   if (resBox) {
     resBox.innerHTML = `
@@ -379,9 +370,7 @@ function openHotelDetail(hotel) {
       </div>`;
   }
 
-  // Установить дефолтный тип номера
   window._selectedRoomType = 'Стандарт';
-
   navigate('page-hotel');
 }
 
@@ -453,10 +442,8 @@ async function loadBookings() {
   if (!container) return;
 
   const heading = container.querySelector('.page-heading');
-  // Убираем старые карточки
   container.querySelectorAll('.booking-card').forEach(c => c.remove());
 
-  // Показываем индикатор
   const loader = document.createElement('div');
   loader.id = 'bookings-loader';
   loader.style.cssText = 'text-align:center;padding:40px;color:#9ca3af';
@@ -527,12 +514,10 @@ async function loadProfile() {
 
     const nameEl  = document.querySelector('#page-profile h2');
     const emailEl = document.querySelector('#page-profile .profile-email');
-    const avatarEl = document.querySelector('#page-profile .profile-avatar');
 
     if (nameEl)  nameEl.textContent  = user.firstName + ' ' + user.lastName;
     if (emailEl) emailEl.textContent = user.email;
 
-    // Считаем брони
     const bRes  = await fetch(`${API_BASE}/api/bookings`, { headers: authHeaders() });
     const bList = await bRes.json();
     const bookingCountEl = document.querySelector('#page-profile .stat:first-child strong');
@@ -556,26 +541,27 @@ function clearSearch() {
 }
 
 // ── КАРТИНКИ ОТЕЛЕЙ ───────────────────────────
-// Файлы лежат в папке img/ рядом с index.html, имя = название отеля из БД
+// Картинки хранятся в Supabase Storage (публичный бакет hotel-images)
+const SUPABASE_STORAGE = 'https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/public/hotel-images';
 const _imgCache = {};
 
 function hotelImageUrl(name) {
   if (!name) name = 'Burj Al Arab';
   if (_imgCache[name]) return _imgCache[name];
-  return `../HotelBooking/img/${name}.jpg`;
+  return `${SUPABASE_STORAGE}/${name}.jpg`;
 }
 
 function setHotelBg(el, name) {
   if (!name) name = 'Burj Al Arab';
-  const jpg = `../HotelBooking/img/${name}.jpg`;
-  const png = `../HotelBooking/img/${name}.png`;
+  const jpg = `${SUPABASE_STORAGE}/${name}.jpg`;
+  const png = `${SUPABASE_STORAGE}/${name}.png`;
   const test = new Image();
   test.onload = () => { el.style.backgroundImage = `url('${jpg}')`; _imgCache[name] = jpg; };
   test.onerror = () => { el.style.backgroundImage = `url('${png}')`; _imgCache[name] = png; };
   test.src = jpg;
 }
 
-// ── UI УТИЛИТЫ (из оригинального файла) ──────
+// ── UI УТИЛИТЫ ────────────────────────────────
 
 function togglePass(inputId, btn) {
   const input = document.getElementById(inputId);
@@ -595,7 +581,6 @@ function updatePriceLabel(slider) {
 }
 
 // ── FAVORITES SYSTEM ──────────────────────────
-// Stored in localStorage keyed by user id so each user has their own set.
 
 function favKey() {
   const uid = currentUser?.guestId || 'guest';
@@ -624,7 +609,6 @@ function toggleFav(hotel) {
   }
   saveFavs(favs);
   renderFavorites();
-  // Update all fav buttons for this hotel across the page
   document.querySelectorAll(`.fav-btn[data-hotel-id="${hotel.hotelId}"]`).forEach(btn => {
     updateFavBtnState(btn, isFav(hotel.hotelId));
   });
@@ -669,7 +653,6 @@ function renderFavorites() {
     if (imgEl) setHotelBg(imgEl, name);
     list.appendChild(item);
   });
-  // Update favorites count on profile
   const favCountEl = document.querySelector('#page-profile .stat:nth-child(2) strong');
   if (favCountEl) favCountEl.textContent = favs.length;
 }
@@ -714,29 +697,24 @@ function updateExpiry() {
 
 // ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Если есть сохранённый токен — идём сразу на главную
   if (loadSavedToken()) {
     navigate('page-explore');
   } else {
     navigate('page-register');
   }
 
-  // Фиксируем кнопки Register и Login
   const regBtn = document.querySelector('#page-register .btn-primary');
   if (regBtn) regBtn.onclick = doRegister;
 
   const loginBtn = document.querySelector('#page-login .btn-primary');
   if (loginBtn) loginBtn.onclick = doLogin;
 
-  // Кнопка Book Now
   const bookBtn = document.querySelector('.book-btn');
   if (bookBtn) bookBtn.onclick = doBooking;
 
-  // Sign Out
   const signOutBtn = document.querySelector('#page-profile .profile-menu button:last-child');
   if (signOutBtn) signOutBtn.onclick = logout;
 
-  // Star / amenity / chip toggles
   document.querySelectorAll('.star-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       this.closest('.star-rating-row')?.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
@@ -765,7 +743,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   bindFavButtons();
 
-  // Terms checkbox
   const termsCheck = document.getElementById('terms-check');
   if (termsCheck) {
     termsCheck.addEventListener('change', function() {
@@ -774,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Payment card selection
   document.addEventListener('click', function(e) {
     const option = e.target.closest('.card-option');
     if (option) {
