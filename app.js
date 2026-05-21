@@ -1,0 +1,789 @@
+// =============================================
+//  SANCTUARY STAY — App Logic + API Integration
+// =============================================
+
+// ── НАСТРОЙКИ API ─────────────────────────────
+// Измени этот адрес если порт отличается!
+const API_BASE = 'http://100.88.186.55:5091';
+// ── СОСТОЯНИЕ ПРИЛОЖЕНИЯ ──────────────────────
+let authToken    = null;   // JWT токен после логина
+let currentUser  = null;   // { guestId, firstName, lastName, email }
+let allHotels    = [];     // список отелей из БД
+let selectedHotel = null;  // выбранный отель для детальной страницы
+
+// ── НАВИГАЦИЯ ─────────────────────────────────
+const history_stack = [];
+
+// Mapping: which tab should be highlighted for each page
+const TAB_MAP = {
+  'page-explore':   0,  // Explore
+  'page-map':       0,  // also under Explore
+  'page-hotel':     0,  // hotel detail — Explore tab
+  'page-search':    0,  // search results — Explore tab
+  'page-filters':   0,
+  'page-bookings':  1,  // Bookings
+  'page-payment':   1,  // payment — Bookings tab
+  'page-addcard':   1,
+  'page-favorites': 2,  // Favorites
+  'page-profile':   3,  // Profile
+};
+
+function syncTabBar(pageId) {
+  const tabIndex = TAB_MAP[pageId] ?? -1;
+  if (tabIndex === -1) return;
+  // Update every tab-bar on the active page
+  const activePage = document.getElementById(pageId);
+  const tabBar = activePage?.querySelector('.tab-bar');
+  if (!tabBar) return;
+  tabBar.querySelectorAll('.tab').forEach((tab, i) => {
+    tab.classList.toggle('active', i === tabIndex);
+  });
+}
+
+function navigate(pageId) {
+  const current = document.querySelector('.page.active');
+  if (current) {
+    history_stack.push(current.id);
+    current.classList.remove('active');
+  }
+  const target = document.getElementById(pageId);
+  if (target) target.classList.add('active');
+  const scroll = target?.querySelector('.page-scroll, .auth-container, .filters-container');
+  if (scroll) scroll.scrollTop = 0;
+
+  syncTabBar(pageId);
+
+  // Загружаем данные при открытии страниц
+  if (pageId === 'page-explore')   loadHotels();
+  if (pageId === 'page-bookings')  loadBookings();
+  if (pageId === 'page-profile')   loadProfile();
+  if (pageId === 'page-search')    loadSearchHotels();
+  if (pageId === 'page-favorites') renderFavorites();
+}
+
+window.history.go = function(n) {
+  if (n === -1 && history_stack.length > 0) {
+    const prev = history_stack.pop();
+    const current = document.querySelector('.page.active');
+    if (current) current.classList.remove('active');
+    const target = document.getElementById(prev);
+    if (target) target.classList.add('active');
+    syncTabBar(prev);
+  }
+};
+
+function setTab(btn, pageId) {
+  const tabBar = btn.closest('.tab-bar');
+  tabBar?.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  navigate(pageId);
+}
+
+// ── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ───────────────────
+function showError(msg) {
+  alert('❌ ' + msg);
+}
+
+function showSuccess(msg) {
+  // Простой toast — можно заменить на красивый
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#22c55e;color:white;padding:10px 20px;border-radius:20px;z-index:9999;font-weight:600;font-size:14px';
+  toast.textContent = '✓ ' + msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+function showLoading(containerId, msg = 'Загрузка...') {
+  const el = document.getElementById(containerId);
+  if (el) el.innerHTML = `<div style="text-align:center;padding:40px;color:#9ca3af;">${msg}</div>`;
+}
+
+// ── AUTH HELPERS ──────────────────────────────
+function saveToken(token, user) {
+  authToken   = token;
+  currentUser = user;
+  localStorage.setItem('ss_token', token);
+  localStorage.setItem('ss_user',  JSON.stringify(user));
+}
+
+function loadSavedToken() {
+  const t = localStorage.getItem('ss_token');
+  const u = localStorage.getItem('ss_user');
+  if (t && u) {
+    authToken   = t;
+    currentUser = JSON.parse(u);
+    return true;
+  }
+  return false;
+}
+
+function logout() {
+  authToken   = null;
+  currentUser = null;
+  localStorage.removeItem('ss_token');
+  localStorage.removeItem('ss_user');
+  navigate('page-login');
+}
+
+// Добавляем авторизационный заголовок
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`
+  };
+}
+
+// ── РЕГИСТРАЦИЯ ───────────────────────────────
+async function doRegister() {
+  // Собираем поля со страницы register
+  const inputs = document.querySelectorAll('#page-register input[type="text"], #page-register input[type="email"], #page-register input[type="password"]');
+  const fullName = inputs[0]?.value.trim() || '';
+  const email    = inputs[1]?.value.trim() || '';
+  const password = document.getElementById('reg-pass')?.value || '';
+
+  if (!fullName || !email || !password) {
+    showError('Заполните все поля'); return;
+  }
+  if (password.length < 4) {
+    showError('Пароль слишком короткий'); return;
+  }
+
+  const nameParts = fullName.split(' ');
+  const firstName = nameParts[0] || fullName;
+  const lastName  = nameParts.slice(1).join(' ') || 'User';
+  // Генерируем уникальный username из email
+  const username = email.split('@')[0] + '_' + Date.now().toString().slice(-4);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName, lastName,
+        idnp: '0000000000000',  // заглушка — в реальном приложении добавить поле
+        email, phone: '000000000',
+        username, password
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      saveToken(data.token, { guestId: data.guestId, firstName, lastName, email });
+      showSuccess('Аккаунт создан!');
+      navigate('page-explore');
+    } else {
+      const err = await res.json();
+      showError(err.message || 'Ошибка регистрации');
+    }
+  } catch (e) {
+    showError('Нет соединения с сервером. Убедитесь что API запущен в Visual Studio.');
+  }
+}
+
+// ── ЛОГИН ─────────────────────────────────────
+async function doLogin() {
+  const identInput = document.getElementById('login-identifier');
+  const passInput  = document.getElementById('login-pass');
+
+  const emailOrUser = identInput?.value.trim() || '';
+  const password    = passInput?.value || '';
+
+  if (!emailOrUser || !password) {
+    showError('Введите логин и пароль'); return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: emailOrUser, password })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      saveToken(data.token, {
+        guestId:   data.guestId,
+        firstName: data.firstName,
+        lastName:  data.lastName,
+        email:     data.email
+      });
+      showSuccess('Добро пожаловать, ' + data.firstName + '!');
+      navigate('page-explore');
+    } else {
+      showError('Неверный логин или пароль');
+    }
+  } catch (e) {
+    showError('Нет соединения с сервером. Убедитесь что API запущен в Visual Studio.');
+  }
+}
+
+// ── ЗАГРУЗКА ОТЕЛЕЙ (Explore) ─────────────────
+async function loadHotels() {
+  try {
+    const res  = await fetch(`${API_BASE}/api/hotels`);
+    const data = await res.json();
+    allHotels  = data;
+    renderHotelsExplore(data);
+  } catch (e) {
+    console.error('Не удалось загрузить отели:', e);
+  }
+}
+
+function renderHotelsExplore(hotels) {
+  const container = document.querySelector('#page-explore .page-scroll');
+  if (!container) return;
+
+  // Сохраняем шапку (searchbar + section-header)
+  const searchBar     = container.querySelector('.search-bar');
+  const sectionHeader = container.querySelector('.section-header');
+
+  // Удаляем старые карточки
+  container.querySelectorAll('.hotel-card-big').forEach(c => c.remove());
+
+  hotels.slice(0, 5).forEach(h => {
+    const card = document.createElement('div');
+    card.className = 'hotel-card-big';
+    card.onclick = () => openHotelDetail(h);
+    card.innerHTML = `
+      <div class="hotel-card-img hotel-bg-${h.hotelId}" style="background:linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.5) 100%) center/cover no-repeat">
+        <button class="fav-btn" data-hotel-id="${h.hotelId}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        </button>
+      </div>
+      <div class="hotel-card-info">
+        <div class="hotel-card-row">
+          <div>
+            <h3 class="hotel-name">${h.nazvanie || h.name}</h3>
+            <p class="hotel-location">${(h.adres || h.address || '').trim()}</p>
+            <p class="hotel-review"><span class="review-good">Rating</span> • ★ ${h.rating}</p>
+          </div>
+          <div class="hotel-score">${h.rating}</div>
+        </div>
+        <div class="hotel-price-row">
+          <span class="nights-label">per night</span>
+          <div class="price-block">
+            <span class="new-price">$${h.priceStandard || h.price_standard} — $${h.priceLux || h.price_lux}</span>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(card);
+    // Set bg with jpg/png fallback
+    const bgEl = card.querySelector(`.hotel-bg-${h.hotelId}`);
+    if (bgEl) setHotelBg(bgEl, h.nazvanie || h.name);
+  });
+
+  // Re-bind fav buttons
+  bindFavButtons();
+}
+
+// ── ЗАГРУЗКА ОТЕЛЕЙ (Search) ──────────────────
+async function loadSearchHotels(query = '') {
+  const container = document.querySelector('#page-search .hotel-list');
+  if (!container) return;
+
+  if (allHotels.length === 0) {
+    try {
+      const res = await fetch(`${API_BASE}/api/hotels`);
+      allHotels = await res.json();
+    } catch (e) { return; }
+  }
+
+  const filtered = query
+    ? allHotels.filter(h =>
+        (h.nazvanie || h.name || '').toLowerCase().includes(query.toLowerCase()) ||
+        (h.adres || h.address || '').toLowerCase().includes(query.toLowerCase()))
+    : allHotels;
+
+  const count = document.querySelector('.results-count');
+  if (count) count.textContent = `Found ${filtered.length} stays`;
+
+  container.innerHTML = '';
+  filtered.forEach(h => {
+    const hotelName = h.nazvanie || h.name;
+    const hotelAddr = (h.adres || h.address || '').trim();
+    const item = document.createElement('div');
+    item.className = 'hotel-list-item';
+    item.onclick = () => openHotelDetail(h);
+    item.innerHTML = `
+      <div class="list-img hotel-search-bg-${h.hotelId}" style="background: center/cover no-repeat">
+        <span class="star-badge">★ ${h.rating}</span>
+      </div>
+      <div class="list-info">
+        <h3 class="list-name">${hotelName}</h3>
+        <p class="list-loc">📍 ${hotelAddr}</p>
+        <div class="tag-row">
+          <span class="tag">Standard $${h.priceStandard || h.price_standard}</span>
+          <span class="tag">Lux $${h.priceLux || h.price_lux}</span>
+        </div>
+        <div class="list-price-row">
+          <span class="list-price">$${h.priceEconom || h.price_econom}<small>/night from</small></span>
+        </div>
+      </div>`;
+    const bgEl2 = item.querySelector(`.hotel-search-bg-${h.hotelId}`);
+    if (bgEl2) setHotelBg(bgEl2, hotelName);
+    container.appendChild(item);
+  });
+}
+
+// ── ДЕТАЛЬНАЯ СТРАНИЦА ОТЕЛЯ ──────────────────
+function openHotelDetail(hotel) {
+  selectedHotel = hotel;
+
+  // Обновляем данные на странице hotel
+  const nameEl  = document.querySelector('.hotel-detail-name');
+  const locEl   = document.querySelector('.hotel-detail-loc');
+  const priceEl = document.querySelector('.res-price');
+  const heroEl  = document.querySelector('.hotel-hero');
+
+  if (nameEl)  nameEl.textContent  = hotel.nazvanie || hotel.name;
+  if (locEl)   locEl.textContent   = '📍 ' + (hotel.adres || hotel.address || '').trim();
+  if (priceEl) priceEl.textContent = `$${hotel.priceStandard || hotel.price_standard} / night`;
+  if (heroEl)  setHotelBg(heroEl, hotel.nazvanie || hotel.name);
+
+  // Обновляем блок цен
+  const resBox = document.querySelector('.reservation-box');
+  if (resBox) {
+    resBox.innerHTML = `
+      <div class="reservation-header">
+        <span class="res-title">Room Types & Prices</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div class="date-box" onclick="selectRoomType('Стандарт')" id="rt-standard" style="cursor:pointer;border:2px solid var(--blue,#1a56db);border-radius:10px;padding:10px">
+          <small>STANDARD</small><strong>$${hotel.priceStandard || hotel.price_standard}/night</strong>
+        </div>
+        <div class="date-box" onclick="selectRoomType('Люкс')" id="rt-lux" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:10px;padding:10px">
+          <small>LUX</small><strong>$${hotel.priceLux || hotel.price_lux}/night</strong>
+        </div>
+        <div class="date-box" onclick="selectRoomType('Эконом')" id="rt-econom" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:10px;padding:10px">
+          <small>ECONOM</small><strong>$${hotel.priceEconom || hotel.price_econom}/night</strong>
+        </div>
+        <div class="date-box" onclick="selectRoomType('Семейный')" id="rt-family" style="cursor:pointer;border:2px solid #e5e7eb;border-radius:10px;padding:10px">
+          <small>FAMILY</small><strong>$${hotel.priceFamily || hotel.price_family}/night</strong>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label style="font-size:12px;font-weight:700;color:#6b7280">CHECK-IN</label>
+        <input type="date" id="book-checkin" style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-top:4px;font-family:inherit">
+        <label style="font-size:12px;font-weight:700;color:#6b7280;margin-top:8px;display:block">CHECK-OUT</label>
+        <input type="date" id="book-checkout" style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-top:4px;font-family:inherit">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:700;color:#6b7280">ADULTS</label>
+            <input type="number" id="book-adults" value="2" min="1" max="10" style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-top:4px;font-family:inherit">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:700;color:#6b7280">CHILDREN</label>
+            <input type="number" id="book-children" value="0" min="0" max="10" style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-top:4px;font-family:inherit">
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Установить дефолтный тип номера
+  window._selectedRoomType = 'Стандарт';
+
+  navigate('page-hotel');
+}
+
+let _selectedRoomType = 'Стандарт';
+function selectRoomType(type) {
+  _selectedRoomType = type;
+  ['standard','lux','econom','family'].forEach(t => {
+    const el = document.getElementById('rt-' + t);
+    if (el) el.style.border = '2px solid #e5e7eb';
+  });
+  const map = { 'Стандарт':'standard','Люкс':'lux','Эконом':'econom','Семейный':'family' };
+  const el = document.getElementById('rt-' + map[type]);
+  if (el) el.style.border = '2px solid var(--blue,#1a56db)';
+}
+
+// ── СОЗДАНИЕ БРОНИ ────────────────────────────
+async function doBooking() {
+  if (!authToken) {
+    showError('Сначала войдите в аккаунт');
+    navigate('page-login');
+    return;
+  }
+  if (!selectedHotel) {
+    showError('Отель не выбран'); return;
+  }
+
+  const checkIn  = document.getElementById('book-checkin')?.value;
+  const checkOut = document.getElementById('book-checkout')?.value;
+  const adults   = parseInt(document.getElementById('book-adults')?.value || '2');
+  const children = parseInt(document.getElementById('book-children')?.value || '0');
+
+  if (!checkIn || !checkOut) {
+    showError('Выберите даты заезда и выезда'); return;
+  }
+  if (checkIn >= checkOut) {
+    showError('Дата выезда должна быть позже заезда'); return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        hotelId:  selectedHotel.hotelId,
+        adults, children,
+        roomType: _selectedRoomType,
+        checkIn, checkOut
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showSuccess(`Бронь создана! Сумма: $${data.summa}`);
+      navigate('page-bookings');
+    } else {
+      const err = await res.json();
+      showError(err.message || 'Ошибка бронирования');
+    }
+  } catch (e) {
+    showError('Нет соединения с сервером');
+  }
+}
+
+// ── МОИ БРОНИ ─────────────────────────────────
+async function loadBookings() {
+  if (!authToken) return;
+
+  const container = document.querySelector('#page-bookings .page-scroll');
+  if (!container) return;
+
+  const heading = container.querySelector('.page-heading');
+  // Убираем старые карточки
+  container.querySelectorAll('.booking-card').forEach(c => c.remove());
+
+  // Показываем индикатор
+  const loader = document.createElement('div');
+  loader.id = 'bookings-loader';
+  loader.style.cssText = 'text-align:center;padding:40px;color:#9ca3af';
+  loader.textContent = 'Загрузка броней...';
+  container.appendChild(loader);
+
+  try {
+    const res  = await fetch(`${API_BASE}/api/bookings`, { headers: authHeaders() });
+    const list = await res.json();
+    loader.remove();
+
+    if (list.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;padding:60px 20px;color:#9ca3af';
+      empty.innerHTML = '<div style="font-size:48px">🏨</div><p style="margin-top:12px">У вас пока нет броней</p><button class="btn-primary" style="margin-top:16px" onclick="navigate(\'page-explore\')">Найти отель</button>';
+      container.appendChild(empty);
+      return;
+    }
+
+    list.forEach(b => {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      const nights = Math.round((new Date(b.checkOut) - new Date(b.checkIn)) / 86400000);
+      const statusClass = new Date(b.checkIn) > new Date() ? 'upcoming' : 'confirmed';
+      const statusText  = statusClass === 'upcoming' ? 'Upcoming' : 'Confirmed';
+      card.innerHTML = `
+        <div class="booking-img booking-bg-${b.bookingId}" style="background: center/cover"></div>
+        <div class="booking-info">
+          <div class="booking-status ${statusClass}">${statusText}</div>
+          <h3>${b.hotelName}</h3>
+          <p class="hotel-location">🛏 ${b.roomType}</p>
+          <p class="booking-dates">${b.checkIn} – ${b.checkOut} · ${nights} nights</p>
+          <p class="booking-total"><strong>$${b.summa}</strong> total</p>
+          <button onclick="cancelBooking(${b.bookingId})" style="margin-top:8px;background:none;border:1px solid #e74c3c;color:#e74c3c;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer">Cancel</button>
+        </div>`;
+      const bEl = card.querySelector(`.booking-bg-${b.bookingId}`);
+      if (bEl) setHotelBg(bEl, b.hotelName);
+      container.appendChild(card);
+    });
+  } catch (e) {
+    loader.textContent = 'Ошибка загрузки броней';
+  }
+}
+
+async function cancelBooking(bookingId) {
+  if (!confirm('Отменить бронирование?')) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/${bookingId}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.ok) {
+      showSuccess('Бронь отменена');
+      loadBookings();
+    }
+  } catch (e) {
+    showError('Ошибка при отмене');
+  }
+}
+
+// ── ПРОФИЛЬ ───────────────────────────────────
+async function loadProfile() {
+  if (!authToken) return;
+
+  try {
+    const res  = await fetch(`${API_BASE}/api/guests/me`, { headers: authHeaders() });
+    const user = await res.json();
+
+    const nameEl  = document.querySelector('#page-profile h2');
+    const emailEl = document.querySelector('#page-profile .profile-email');
+    const avatarEl = document.querySelector('#page-profile .profile-avatar');
+
+    if (nameEl)  nameEl.textContent  = user.firstName + ' ' + user.lastName;
+    if (emailEl) emailEl.textContent = user.email;
+
+    // Считаем брони
+    const bRes  = await fetch(`${API_BASE}/api/bookings`, { headers: authHeaders() });
+    const bList = await bRes.json();
+    const bookingCountEl = document.querySelector('#page-profile .stat:first-child strong');
+    if (bookingCountEl) bookingCountEl.textContent = bList.length;
+
+  } catch (e) {
+    console.error('Ошибка загрузки профиля:', e);
+  }
+}
+
+// ── ПОИСК ─────────────────────────────────────
+function checkEmpty(input) {
+  const query = input.value.trim();
+  loadSearchHotels(query);
+}
+
+function clearSearch() {
+  const inp = document.getElementById('search-input');
+  if (inp) inp.value = '';
+  loadSearchHotels('');
+}
+
+// ── КАРТИНКИ ОТЕЛЕЙ ───────────────────────────
+// Файлы лежат в папке img/ рядом с index.html, имя = название отеля из БД
+const _imgCache = {};
+
+function hotelImageUrl(name) {
+  if (!name) name = 'Burj Al Arab';
+  if (_imgCache[name]) return _imgCache[name];
+  return `../HotelBooking/img/${name}.jpg`;
+}
+
+function setHotelBg(el, name) {
+  if (!name) name = 'Burj Al Arab';
+  const jpg = `../HotelBooking/img/${name}.jpg`;
+  const png = `../HotelBooking/img/${name}.png`;
+  const test = new Image();
+  test.onload = () => { el.style.backgroundImage = `url('${jpg}')`; _imgCache[name] = jpg; };
+  test.onerror = () => { el.style.backgroundImage = `url('${png}')`; _imgCache[name] = png; };
+  test.src = jpg;
+}
+
+// ── UI УТИЛИТЫ (из оригинального файла) ──────
+
+function togglePass(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text'; btn.style.color = '#1a56db';
+  } else {
+    input.type = 'password'; btn.style.color = '#9ca3af';
+  }
+}
+
+function updatePriceLabel(slider) {
+  const label = document.querySelector('.price-range-label');
+  if (label) label.textContent = `$${slider.value} — $850+`;
+  const pct = (slider.value / slider.max) * 100;
+  slider.style.background = `linear-gradient(to right, var(--blue) ${pct}%, #e5e7eb ${pct}%)`;
+}
+
+// ── FAVORITES SYSTEM ──────────────────────────
+// Stored in localStorage keyed by user id so each user has their own set.
+
+function favKey() {
+  const uid = currentUser?.guestId || 'guest';
+  return `ss_favs_${uid}`;
+}
+
+function loadFavs() {
+  try { return JSON.parse(localStorage.getItem(favKey()) || '[]'); } catch { return []; }
+}
+
+function saveFavs(favs) {
+  localStorage.setItem(favKey(), JSON.stringify(favs));
+}
+
+function isFav(hotelId) {
+  return loadFavs().some(f => f.hotelId === hotelId);
+}
+
+function toggleFav(hotel) {
+  let favs = loadFavs();
+  const idx = favs.findIndex(f => f.hotelId === hotel.hotelId);
+  if (idx >= 0) {
+    favs.splice(idx, 1);
+  } else {
+    favs.push(hotel);
+  }
+  saveFavs(favs);
+  renderFavorites();
+  // Update all fav buttons for this hotel across the page
+  document.querySelectorAll(`.fav-btn[data-hotel-id="${hotel.hotelId}"]`).forEach(btn => {
+    updateFavBtnState(btn, isFav(hotel.hotelId));
+  });
+}
+
+function updateFavBtnState(btn, active) {
+  const svg = btn.querySelector('svg');
+  if (!svg) return;
+  svg.setAttribute('fill', active ? '#e74c3c' : 'none');
+  svg.setAttribute('stroke', active ? '#e74c3c' : 'white');
+}
+
+function renderFavorites() {
+  const list  = document.getElementById('favorites-list');
+  const empty = document.getElementById('favorites-empty');
+  if (!list) return;
+  const favs = loadFavs();
+  list.innerHTML = '';
+  if (favs.length === 0) {
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  favs.forEach(h => {
+    const name  = h.nazvanie  || h.name  || h.hotelName  || h.title || '—';
+    const addr  = h.adres     || h.address || h.location  || '';
+    const price = h.priceStandard || h.price_standard || h.pricePerNight || h.price || '';
+    const id    = h.hotelId   || h.hotel_id || h.id || 0;
+    const item = document.createElement('div');
+    item.className = 'hotel-list-item';
+    item.onclick = () => openHotelDetail(h);
+    item.innerHTML = `
+      <div class="list-img fav-list-img-${id}" style="background:center/cover no-repeat">
+        <span class="star-badge">★ ${h.rating ?? ''}</span>
+      </div>
+      <div class="list-info">
+        <h3 class="list-name">${name}</h3>
+        <p class="list-loc">📍 ${addr.trim()}</p>
+        <div class="list-price-row"><span class="list-price">$${price}<small>/night</small></span></div>
+      </div>`;
+    const imgEl = item.querySelector(`.fav-list-img-${id}`);
+    if (imgEl) setHotelBg(imgEl, name);
+    list.appendChild(item);
+  });
+  // Update favorites count on profile
+  const favCountEl = document.querySelector('#page-profile .stat:nth-child(2) strong');
+  if (favCountEl) favCountEl.textContent = favs.length;
+}
+
+function bindFavButtons() {
+  document.querySelectorAll('.fav-btn[data-hotel-id]').forEach(btn => {
+    const id = parseInt(btn.dataset.hotelId);
+    updateFavBtnState(btn, isFav(id));
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      const hotel = allHotels.find(h => h.hotelId === id);
+      if (hotel) toggleFav(hotel);
+    };
+  });
+}
+
+function formatCardNumber(input) {
+  let val = input.value.replace(/\D/g, '').slice(0, 16);
+  input.value = val.replace(/(.{4})/g, '$1 ').trim();
+  const el = document.getElementById('preview-last4');
+  if (el) el.textContent = val.length >= 4 ? val.slice(-4) : (val + '0000').slice(0, 4);
+  const logo = document.getElementById('card-type-logo');
+  if (logo) {
+    if (val.startsWith('4')) logo.textContent = 'VISA';
+    else if (val.startsWith('5') || val.startsWith('2')) logo.textContent = 'MC';
+    else if (val.startsWith('3')) logo.textContent = 'AMEX';
+    else logo.textContent = 'VISA';
+  }
+}
+
+function updateCardName(input) {
+  const el = document.getElementById('preview-name');
+  if (el) el.textContent = input.value.toUpperCase() || 'FULL NAME';
+}
+
+function updateExpiry() {
+  const mm = document.getElementById('card-mm')?.value || 'MM';
+  const yy = document.getElementById('card-yy')?.value || 'YY';
+  const el = document.getElementById('preview-exp');
+  if (el) el.textContent = mm + '/' + yy;
+}
+
+// ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Если есть сохранённый токен — идём сразу на главную
+  if (loadSavedToken()) {
+    navigate('page-explore');
+  } else {
+    navigate('page-register');
+  }
+
+  // Фиксируем кнопки Register и Login
+  const regBtn = document.querySelector('#page-register .btn-primary');
+  if (regBtn) regBtn.onclick = doRegister;
+
+  const loginBtn = document.querySelector('#page-login .btn-primary');
+  if (loginBtn) loginBtn.onclick = doLogin;
+
+  // Кнопка Book Now
+  const bookBtn = document.querySelector('.book-btn');
+  if (bookBtn) bookBtn.onclick = doBooking;
+
+  // Sign Out
+  const signOutBtn = document.querySelector('#page-profile .profile-menu button:last-child');
+  if (signOutBtn) signOutBtn.onclick = logout;
+
+  // Star / amenity / chip toggles
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.closest('.star-rating-row')?.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.amenity-btn').forEach(btn => {
+    btn.addEventListener('click', function() { this.classList.toggle('active'); });
+  });
+
+  document.querySelectorAll('.filter-chips .chip, .sort-chips .chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      this.closest('.filter-chips, .sort-chips')?.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.property-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.querySelectorAll('.property-card').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  bindFavButtons();
+
+  // Terms checkbox
+  const termsCheck = document.getElementById('terms-check');
+  if (termsCheck) {
+    termsCheck.addEventListener('change', function() {
+      const btn = document.querySelector('#page-register .btn-primary');
+      if (btn) btn.style.opacity = this.checked ? '1' : '0.6';
+    });
+  }
+
+  // Payment card selection
+  document.addEventListener('click', function(e) {
+    const option = e.target.closest('.card-option');
+    if (option) {
+      document.querySelectorAll('.card-option').forEach(o => o.classList.remove('active'));
+      option.classList.add('active');
+      document.querySelectorAll('.radio-dot').forEach(d => {
+        d.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/></svg>';
+      });
+      option.querySelector('.radio-dot').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>';
+    }
+  });
+});
