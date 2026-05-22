@@ -3,8 +3,8 @@
 // =============================================
 
 // ── НАСТРОЙКИ API ─────────────────────────────
-const API_BASE = 'https://hotelbookingapi-production-437c.up.railway.app';
-
+// Измени этот адрес если порт отличается!
+const API_BASE = 'http://100.88.186.55:5091';
 // ── СОСТОЯНИЕ ПРИЛОЖЕНИЯ ──────────────────────
 let authToken    = null;   // JWT токен после логина
 let currentUser  = null;   // { guestId, firstName, lastName, email }
@@ -85,6 +85,7 @@ function showError(msg) {
 }
 
 function showSuccess(msg) {
+  // Простой toast — можно заменить на красивый
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#22c55e;color:white;padding:10px 20px;border-radius:20px;z-index:9999;font-weight:600;font-size:14px';
   toast.textContent = '✓ ' + msg;
@@ -132,35 +133,63 @@ function authHeaders() {
   };
 }
 
+// ── СТРАНЫ ДЛЯ ТЕЛЕФОНА ───────────────────────
+const PHONE_COUNTRIES = [
+  { code: '+373', digits: 8 },
+  { code: '+7',   digits: 10 },
+  { code: '+40',  digits: 9 },
+  { code: '+380', digits: 9 },
+  { code: '+49',  digits: 10 },
+  { code: '+33',  digits: 9 },
+  { code: '+1',   digits: 10 },
+  { code: '+44',  digits: 10 },
+  { code: '+39',  digits: 10 },
+  { code: '+34',  digits: 9 },
+];
+
+function onRegCountryChange() {
+  const sel = document.getElementById('reg-country');
+  if (!sel) return;
+  const [, digits] = sel.value.split('|');
+  const phoneInput = document.getElementById('reg-phone');
+  const hint = document.getElementById('reg-phone-hint');
+  if (phoneInput) { phoneInput.maxLength = parseInt(digits); phoneInput.value = ''; }
+  if (hint) hint.textContent = `Enter ${digits} digits (without country code)`;
+}
+
 // ── РЕГИСТРАЦИЯ ───────────────────────────────
 async function doRegister() {
-  const inputs = document.querySelectorAll('#page-register input[type="text"], #page-register input[type="email"], #page-register input[type="password"]');
-  const fullName = inputs[0]?.value.trim() || '';
-  const email    = inputs[1]?.value.trim() || '';
+  const fullName = document.getElementById('reg-fullname')?.value.trim() || '';
+  const email    = document.getElementById('reg-email')?.value.trim() || '';
+  const idnp     = document.getElementById('reg-idnp')?.value.trim() || '';
   const password = document.getElementById('reg-pass')?.value || '';
 
-  if (!fullName || !email || !password) {
-    showError('Заполните все поля'); return;
+  const sel = document.getElementById('reg-country');
+  const [countryCode, requiredDigits] = sel ? sel.value.split('|') : ['+373', '8'];
+  const phoneDigits = document.getElementById('reg-phone')?.value || '';
+  const fullPhone = countryCode + phoneDigits;
+
+  if (!fullName) { showError('Введите полное имя'); return; }
+  if (!email || !email.includes('@')) { showError('Введите корректный email'); return; }
+  if (idnp.length !== 13) { showError('IDNP должен содержать ровно 13 цифр'); return; }
+  if (phoneDigits.length !== parseInt(requiredDigits)) {
+    showError(`Номер телефона должен содержать ${requiredDigits} цифр (без кода страны)`); return;
   }
-  if (password.length < 4) {
-    showError('Пароль слишком короткий'); return;
-  }
+  if (!password || password.length < 8) { showError('Пароль должен быть не менее 8 символов'); return; }
+
+  const termsCheck = document.getElementById('terms-check');
+  if (termsCheck && !termsCheck.checked) { showError('Подтвердите согласие с условиями'); return; }
 
   const nameParts = fullName.split(' ');
   const firstName = nameParts[0] || fullName;
   const lastName  = nameParts.slice(1).join(' ') || 'User';
-  const username = email.split('@')[0] + '_' + Date.now().toString().slice(-4);
+  const username  = email.split('@')[0] + '_' + Date.now().toString().slice(-4);
 
   try {
     const res = await fetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName, lastName,
-        idnp: '0000000000000',
-        email, phone: '000000000',
-        username, password
-      })
+      body: JSON.stringify({ firstName, lastName, idnp, email, phone: fullPhone, username, password })
     });
 
     if (res.ok) {
@@ -179,21 +208,24 @@ async function doRegister() {
 
 // ── ЛОГИН ─────────────────────────────────────
 async function doLogin() {
-  const identInput = document.getElementById('login-identifier');
+  const emailInput = document.getElementById('login-identifier');
   const passInput  = document.getElementById('login-pass');
 
-  const emailOrUser = identInput?.value.trim() || '';
-  const password    = passInput?.value || '';
+  const email    = emailInput?.value.trim() || '';
+  const password = passInput?.value || '';
 
-  if (!emailOrUser || !password) {
-    showError('Введите логин и пароль'); return;
+  if (!email || !email.includes('@')) {
+    showError('Введите корректный email адрес'); return;
+  }
+  if (!password) {
+    showError('Введите пароль'); return;
   }
 
   try {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: emailOrUser, password })
+      body: JSON.stringify({ username: email, password })
     });
 
     if (res.ok) {
@@ -207,11 +239,139 @@ async function doLogin() {
       showSuccess('Добро пожаловать, ' + data.firstName + '!');
       navigate('page-explore');
     } else {
-      showError('Неверный логин или пароль');
+      showError('Неверный email или пароль');
     }
   } catch (e) {
     showError('Нет соединения с сервером. Убедитесь что API запущен в Visual Studio.');
   }
+}
+
+// ── ВОССТАНОВЛЕНИЕ ПАРОЛЯ ─────────────────────
+let _otpTimerInterval = null;
+let _generatedOtp     = null;
+let _forgotContact    = null;
+
+function doSendCode() {
+  const contact = document.getElementById('forgot-contact')?.value.trim() || '';
+  if (!contact) { showError('Введите email или номер телефона'); return; }
+
+  const isEmail = contact.includes('@');
+  const isPhone = /^\+?\d{7,15}$/.test(contact.replace(/\s/g, ''));
+  if (!isEmail && !isPhone) {
+    showError('Введите корректный email или номер телефона');
+    return;
+  }
+
+  _forgotContact = contact;
+  // В реальном приложении здесь был бы запрос к API
+  // Для демонстрации генерируем 6-значный код локально
+  _generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  const subtitle = document.getElementById('verify-subtitle');
+  if (subtitle) {
+    const masked = isEmail
+      ? contact.replace(/(.{2}).+(@.+)/, '$1***$2')
+      : contact.slice(0, -4).replace(/./g, '•') + contact.slice(-4);
+    subtitle.textContent = `We sent a 6-digit code to ${masked}`;
+  }
+
+  // Сброс полей OTP
+  for (let i = 0; i < 6; i++) {
+    const inp = document.getElementById('otp' + i);
+    if (inp) { inp.value = ''; inp.classList.remove('filled'); }
+  }
+
+  navigate('page-verify');
+  startOtpTimer();
+
+  // Показываем код в консоли (для разработки)
+  console.log('%c[DEV] Verification code: ' + _generatedOtp, 'color:#1a56db;font-weight:bold;font-size:16px');
+  // В реальном приложении — убрать строку выше и отправить через API
+  showSuccess(`Код отправлен на ${contact}`);
+}
+
+function startOtpTimer(seconds = 120) {
+  clearInterval(_otpTimerInterval);
+  const resendBtn   = document.getElementById('resend-btn');
+  const countdown   = document.getElementById('otp-countdown');
+  if (resendBtn) resendBtn.disabled = true;
+  let remaining = seconds;
+  _otpTimerInterval = setInterval(() => {
+    remaining--;
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    if (countdown) countdown.textContent = `${m}:${s}`;
+    if (remaining <= 0) {
+      clearInterval(_otpTimerInterval);
+      if (resendBtn) resendBtn.disabled = false;
+      if (countdown) countdown.textContent = '00:00';
+    }
+  }, 1000);
+}
+
+function otpNext(input, idx) {
+  input.value = input.value.replace(/\D/g, '').slice(0, 1);
+  input.classList.toggle('filled', input.value !== '');
+  if (input.value && idx < 5) {
+    document.getElementById('otp' + (idx + 1))?.focus();
+  }
+  // Backspace support via keydown — handled below
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Backspace' && e.target.classList.contains('otp-input')) {
+    const idx = parseInt(e.target.id.replace('otp', ''));
+    if (e.target.value === '' && idx > 0) {
+      const prev = document.getElementById('otp' + (idx - 1));
+      if (prev) { prev.value = ''; prev.classList.remove('filled'); prev.focus(); }
+    }
+  }
+});
+
+function getOtpValue() {
+  let code = '';
+  for (let i = 0; i < 6; i++) code += document.getElementById('otp' + i)?.value || '';
+  return code;
+}
+
+function doVerifyCode() {
+  const code = getOtpValue();
+  if (code.length !== 6) { showError('Введите все 6 цифр кода'); return; }
+  if (code !== _generatedOtp) {
+    showError('Неверный код. Попробуйте снова.');
+    for (let i = 0; i < 6; i++) {
+      const inp = document.getElementById('otp' + i);
+      if (inp) { inp.classList.add('filled'); inp.style.borderColor = '#ef4444'; }
+    }
+    setTimeout(() => {
+      for (let i = 0; i < 6; i++) {
+        const inp = document.getElementById('otp' + i);
+        if (inp) inp.style.borderColor = '';
+      }
+    }, 800);
+    return;
+  }
+  clearInterval(_otpTimerInterval);
+  showSuccess('Код подтверждён!');
+  navigate('page-newpass');
+}
+
+function doResendCode() {
+  if (!_forgotContact) return;
+  _generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log('%c[DEV] New verification code: ' + _generatedOtp, 'color:#1a56db;font-weight:bold;font-size:16px');
+  startOtpTimer();
+  showSuccess('Новый код отправлен!');
+}
+
+function doResetPassword() {
+  const p1 = document.getElementById('newpass1')?.value || '';
+  const p2 = document.getElementById('newpass2')?.value || '';
+  if (p1.length < 8) { showError('Пароль должен быть не менее 8 символов'); return; }
+  if (p1 !== p2) { showError('Пароли не совпадают'); return; }
+  // В реальном приложении — отправить новый пароль на сервер с токеном
+  showSuccess('Пароль успешно изменён!');
+  setTimeout(() => navigate('page-login'), 1200);
 }
 
 // ── ЗАГРУЗКА ОТЕЛЕЙ (Explore) ─────────────────
@@ -230,9 +390,11 @@ function renderHotelsExplore(hotels) {
   const container = document.querySelector('#page-explore .page-scroll');
   if (!container) return;
 
+  // Сохраняем шапку (searchbar + section-header)
   const searchBar     = container.querySelector('.search-bar');
   const sectionHeader = container.querySelector('.section-header');
 
+  // Удаляем старые карточки
   container.querySelectorAll('.hotel-card-big').forEach(c => c.remove());
 
   hotels.slice(0, 5).forEach(h => {
@@ -262,10 +424,12 @@ function renderHotelsExplore(hotels) {
         </div>
       </div>`;
     container.appendChild(card);
+    // Set bg with jpg/png fallback
     const bgEl = card.querySelector(`.hotel-bg-${h.hotelId}`);
     if (bgEl) setHotelBg(bgEl, h.nazvanie || h.name);
   });
 
+  // Re-bind fav buttons
   bindFavButtons();
 }
 
@@ -322,6 +486,7 @@ async function loadSearchHotels(query = '') {
 function openHotelDetail(hotel) {
   selectedHotel = hotel;
 
+  // Обновляем данные на странице hotel
   const nameEl  = document.querySelector('.hotel-detail-name');
   const locEl   = document.querySelector('.hotel-detail-loc');
   const priceEl = document.querySelector('.res-price');
@@ -332,6 +497,7 @@ function openHotelDetail(hotel) {
   if (priceEl) priceEl.textContent = `$${hotel.priceStandard || hotel.price_standard} / night`;
   if (heroEl)  setHotelBg(heroEl, hotel.nazvanie || hotel.name);
 
+  // Обновляем блок цен
   const resBox = document.querySelector('.reservation-box');
   if (resBox) {
     resBox.innerHTML = `
@@ -370,7 +536,9 @@ function openHotelDetail(hotel) {
       </div>`;
   }
 
+  // Установить дефолтный тип номера
   window._selectedRoomType = 'Стандарт';
+
   navigate('page-hotel');
 }
 
@@ -442,8 +610,10 @@ async function loadBookings() {
   if (!container) return;
 
   const heading = container.querySelector('.page-heading');
+  // Убираем старые карточки
   container.querySelectorAll('.booking-card').forEach(c => c.remove());
 
+  // Показываем индикатор
   const loader = document.createElement('div');
   loader.id = 'bookings-loader';
   loader.style.cssText = 'text-align:center;padding:40px;color:#9ca3af';
@@ -514,10 +684,12 @@ async function loadProfile() {
 
     const nameEl  = document.querySelector('#page-profile h2');
     const emailEl = document.querySelector('#page-profile .profile-email');
+    const avatarEl = document.querySelector('#page-profile .profile-avatar');
 
     if (nameEl)  nameEl.textContent  = user.firstName + ' ' + user.lastName;
     if (emailEl) emailEl.textContent = user.email;
 
+    // Считаем брони
     const bRes  = await fetch(`${API_BASE}/api/bookings`, { headers: authHeaders() });
     const bList = await bRes.json();
     const bookingCountEl = document.querySelector('#page-profile .stat:first-child strong');
@@ -541,27 +713,26 @@ function clearSearch() {
 }
 
 // ── КАРТИНКИ ОТЕЛЕЙ ───────────────────────────
-// Картинки хранятся в Supabase Storage (публичный бакет hotel-images)
-const SUPABASE_STORAGE = 'https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/public/hotel-images';
+// Файлы лежат в папке img/ рядом с index.html, имя = название отеля из БД
 const _imgCache = {};
 
 function hotelImageUrl(name) {
   if (!name) name = 'Burj Al Arab';
   if (_imgCache[name]) return _imgCache[name];
-  return `${SUPABASE_STORAGE}/${name}.jpg`;
+  return `../HotelBooking/img/${name}.jpg`;
 }
 
 function setHotelBg(el, name) {
   if (!name) name = 'Burj Al Arab';
-  const jpg = `${SUPABASE_STORAGE}/${name}.jpg`;
-  const png = `${SUPABASE_STORAGE}/${name}.png`;
+  const jpg = `../HotelBooking/img/${name}.jpg`;
+  const png = `../HotelBooking/img/${name}.png`;
   const test = new Image();
   test.onload = () => { el.style.backgroundImage = `url('${jpg}')`; _imgCache[name] = jpg; };
   test.onerror = () => { el.style.backgroundImage = `url('${png}')`; _imgCache[name] = png; };
   test.src = jpg;
 }
 
-// ── UI УТИЛИТЫ ────────────────────────────────
+// ── UI УТИЛИТЫ (из оригинального файла) ──────
 
 function togglePass(inputId, btn) {
   const input = document.getElementById(inputId);
@@ -581,6 +752,7 @@ function updatePriceLabel(slider) {
 }
 
 // ── FAVORITES SYSTEM ──────────────────────────
+// Stored in localStorage keyed by user id so each user has their own set.
 
 function favKey() {
   const uid = currentUser?.guestId || 'guest';
@@ -609,6 +781,7 @@ function toggleFav(hotel) {
   }
   saveFavs(favs);
   renderFavorites();
+  // Update all fav buttons for this hotel across the page
   document.querySelectorAll(`.fav-btn[data-hotel-id="${hotel.hotelId}"]`).forEach(btn => {
     updateFavBtnState(btn, isFav(hotel.hotelId));
   });
@@ -653,6 +826,7 @@ function renderFavorites() {
     if (imgEl) setHotelBg(imgEl, name);
     list.appendChild(item);
   });
+  // Update favorites count on profile
   const favCountEl = document.querySelector('#page-profile .stat:nth-child(2) strong');
   if (favCountEl) favCountEl.textContent = favs.length;
 }
@@ -697,24 +871,29 @@ function updateExpiry() {
 
 // ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Если есть сохранённый токен — идём сразу на главную
   if (loadSavedToken()) {
     navigate('page-explore');
   } else {
     navigate('page-register');
   }
 
-  const regBtn = document.querySelector('#page-register .btn-primary');
+  // Кнопки Register и Login
+  const regBtn = document.getElementById('reg-btn') || document.querySelector('#page-register .btn-primary');
   if (regBtn) regBtn.onclick = doRegister;
 
-  const loginBtn = document.querySelector('#page-login .btn-primary');
+  const loginBtn = document.getElementById('login-btn') || document.querySelector('#page-login .btn-primary');
   if (loginBtn) loginBtn.onclick = doLogin;
 
+  // Кнопка Book Now
   const bookBtn = document.querySelector('.book-btn');
   if (bookBtn) bookBtn.onclick = doBooking;
 
+  // Sign Out
   const signOutBtn = document.querySelector('#page-profile .profile-menu button:last-child');
   if (signOutBtn) signOutBtn.onclick = logout;
 
+  // Star / amenity / chip toggles
   document.querySelectorAll('.star-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       this.closest('.star-rating-row')?.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
@@ -743,6 +922,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   bindFavButtons();
 
+  // Terms checkbox
   const termsCheck = document.getElementById('terms-check');
   if (termsCheck) {
     termsCheck.addEventListener('change', function() {
@@ -751,6 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Payment card selection
   document.addEventListener('click', function(e) {
     const option = e.target.closest('.card-option');
     if (option) {
