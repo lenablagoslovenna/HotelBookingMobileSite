@@ -918,3 +918,99 @@ html, body {
   25%      { transform: translateX(-5px); }
   75%      { transform: translateX(5px); }
 }
+/* ============================================================
+   PATCH: Add to end of styles.css
+   Payment empty state + compact add-card + card type logos
+   ============================================================ */
+
+/* ── Payment Empty State ── */
+.pay-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 20px 8px;
+}
+.pay-empty-icon {
+  width: 72px; height: 72px;
+  background: var(--blue-light);
+  border-radius: 22px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 18px rgba(26,86,219,0.12);
+}
+.pay-empty-title {
+  font-size: 17px; font-weight: 800; color: var(--text);
+  margin-bottom: 6px;
+}
+.pay-empty-sub {
+  font-size: 13px; color: var(--text-muted);
+  margin-bottom: 4px; line-height: 1.5;
+}
+
+/* ── Compact expiry + CVV side-by-side ── */
+.expiry-cvv-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.expiry-pair {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expiry-half {
+  flex: 1;
+  min-width: 0;
+}
+
+.expiry-half input {
+  text-align: center;
+  padding: 13px 6px;
+}
+
+/* ── Compact card preview (less vertical height) ── */
+.card-preview {
+  padding: 16px 20px 16px !important;
+  margin-bottom: 4px !important;
+}
+
+.card-preview-top {
+  margin-bottom: 14px !important;
+}
+
+.card-preview-dots {
+  margin-bottom: 14px !important;
+  font-size: 13px !important;
+}
+
+/* ── MC card type logo ── */
+#card-type-logo {
+  font-size: 16px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.5px;
+  color: white;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ── Mastercard logo circles (when MC detected) ── */
+.card-type-mc-icon {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Page scroll for addcard — ensure everything fits ── */
+#page-addcard .page-scroll {
+  padding-bottom: 80px;
+}
+
+/* ── Expiry validation hint colors ── */
+#expiry-error {
+  font-size: 11px;
+  margin-top: 4px;
+  font-weight: 600;
+}
