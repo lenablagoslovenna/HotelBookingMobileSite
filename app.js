@@ -133,48 +133,14 @@ function authHeaders() {
   };
 }
 
-// ── СТРАНЫ ДЛЯ ТЕЛЕФОНА ───────────────────────
-const PHONE_COUNTRIES = [
-  { code: '+373', digits: 8 },
-  { code: '+7',   digits: 10 },
-  { code: '+40',  digits: 9 },
-  { code: '+380', digits: 9 },
-  { code: '+49',  digits: 10 },
-  { code: '+33',  digits: 9 },
-  { code: '+1',   digits: 10 },
-  { code: '+44',  digits: 10 },
-  { code: '+39',  digits: 10 },
-  { code: '+34',  digits: 9 },
-];
-
-function onRegCountryChange() {
-  const sel = document.getElementById('reg-country');
-  if (!sel) return;
-  const [, digits] = sel.value.split('|');
-  const phoneInput = document.getElementById('reg-phone');
-  const hint = document.getElementById('reg-phone-hint');
-  if (phoneInput) { phoneInput.maxLength = parseInt(digits); phoneInput.value = ''; }
-  if (hint) hint.textContent = `Enter ${digits} digits (without country code)`;
-}
-
 // ── РЕГИСТРАЦИЯ ───────────────────────────────
 async function doRegister() {
   const fullName = document.getElementById('reg-fullname')?.value.trim() || '';
   const email    = document.getElementById('reg-email')?.value.trim() || '';
-  const idnp     = document.getElementById('reg-idnp')?.value.trim() || '';
   const password = document.getElementById('reg-pass')?.value || '';
-
-  const sel = document.getElementById('reg-country');
-  const [countryCode, requiredDigits] = sel ? sel.value.split('|') : ['+373', '8'];
-  const phoneDigits = document.getElementById('reg-phone')?.value || '';
-  const fullPhone = countryCode + phoneDigits;
 
   if (!fullName) { showError('Введите полное имя'); return; }
   if (!email || !email.includes('@')) { showError('Введите корректный email'); return; }
-  if (idnp.length !== 13) { showError('IDNP должен содержать ровно 13 цифр'); return; }
-  if (phoneDigits.length !== parseInt(requiredDigits)) {
-    showError(`Номер телефона должен содержать ${requiredDigits} цифр (без кода страны)`); return;
-  }
   if (!password || password.length < 8) { showError('Пароль должен быть не менее 8 символов'); return; }
 
   const termsCheck = document.getElementById('terms-check');
@@ -189,7 +155,12 @@ async function doRegister() {
     const res = await fetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, idnp, email, phone: fullPhone, username, password })
+      body: JSON.stringify({
+        firstName, lastName,
+        idnp: '0000000000000',
+        email, phone: '000000000',
+        username, password
+      })
     });
 
     if (res.ok) {
@@ -202,7 +173,7 @@ async function doRegister() {
       showError(err.message || 'Ошибка регистрации');
     }
   } catch (e) {
-    showError('Нет соединения с сервером. Убедитесь что API запущен в Visual Studio.');
+    showError('Нет соединения с сервером: ' + e.message);
   }
 }
 
