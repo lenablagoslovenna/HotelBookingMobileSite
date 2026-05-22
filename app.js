@@ -144,7 +144,14 @@ async function doRegister() {
   if (!password || password.length < 8) { showError('Пароль должен быть не менее 8 символов'); return; }
 
   const termsCheck = document.getElementById('terms-check');
-  if (termsCheck && !termsCheck.checked) { showError('Подтвердите согласие с условиями'); return; }
+  if (termsCheck && !termsCheck.checked) {
+    const wrap = termsCheck.closest('.checkbox-wrap');
+    if (wrap) {
+      wrap.classList.add('checkbox-error');
+      setTimeout(() => wrap.classList.remove('checkbox-error'), 2500);
+    }
+    return;
+  }
 
   const nameParts = fullName.split(' ');
   const firstName = nameParts[0] || fullName;
@@ -694,23 +701,17 @@ function clearSearch() {
 }
 
 // ── КАРТИНКИ ОТЕЛЕЙ ───────────────────────────
-// Файлы лежат в папке img/ рядом с index.html, имя = название отеля из БД
-const _imgCache = {};
+const SUPABASE_IMG = 'https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/public/hotel-images/';
 
 function hotelImageUrl(name) {
   if (!name) name = 'Burj Al Arab';
-  if (_imgCache[name]) return _imgCache[name];
-  return `../HotelBooking/img/${name}.jpg`;
+  return `${SUPABASE_IMG}${encodeURIComponent(name)}.jpg`;
 }
 
 function setHotelBg(el, name) {
   if (!name) name = 'Burj Al Arab';
-  const jpg = `../HotelBooking/img/${name}.jpg`;
-  const png = `../HotelBooking/img/${name}.png`;
-  const test = new Image();
-  test.onload = () => { el.style.backgroundImage = `url('${jpg}')`; _imgCache[name] = jpg; };
-  test.onerror = () => { el.style.backgroundImage = `url('${png}')`; _imgCache[name] = png; };
-  test.src = jpg;
+  const url = `${SUPABASE_IMG}${encodeURIComponent(name)}.jpg`;
+  el.style.backgroundImage = `url('${url}')`;
 }
 
 // ── UI УТИЛИТЫ (из оригинального файла) ──────
