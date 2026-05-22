@@ -4,7 +4,7 @@
 
 // ── НАСТРОЙКИ API ─────────────────────────────
 // Измени этот адрес если порт отличается!
-const API_BASE = 'http://100.88.186.55:5091';
+const API_BASE = 'https://hotelbookingapi-production-437c.up.railway.app';
 // ── СОСТОЯНИЕ ПРИЛОЖЕНИЯ ──────────────────────
 let authToken    = null;   // JWT токен после логина
 let currentUser  = null;   // { guestId, firstName, lastName, email }
