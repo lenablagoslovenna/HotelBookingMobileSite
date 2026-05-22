@@ -829,6 +829,7 @@ html, body {
   color: var(--text); cursor: pointer; padding: 13px 0; width: 100%;
 }
 
+
 /* ── FORGOT / VERIFY pages ── */
 .forgot-icon-wrap {
   width: 60px; height: 60px;
@@ -840,34 +841,54 @@ html, body {
 }
 .verify-icon { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
 
-/* OTP inputs */
+/* OTP inputs — 6 circles in one row */
 .otp-row {
-  display: flex; gap: 8px; justify-content: center;
-  margin-bottom: 14px;
+  display: flex; gap: 10px; justify-content: center;
+  margin-bottom: 20px;
 }
 .otp-input {
-  width: 44px; height: 52px;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
+  width: 46px; height: 46px;
+  border: 1.8px solid var(--border);
+  border-radius: 50%;
   text-align: center;
-  font-size: 22px; font-weight: 800;
+  font-size: 18px; font-weight: 800;
   font-family: 'Nunito', sans-serif;
   color: var(--text); background: var(--white);
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  caret-color: var(--blue);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  -webkit-appearance: none;
 }
 .otp-input:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(26,86,219,0.12);
+  box-shadow: 0 0 0 3px rgba(26,86,219,0.14);
 }
 .otp-input.filled {
   border-color: var(--blue);
   background: var(--blue-light);
+  color: var(--blue);
+}
+.otp-input.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #ef4444;
 }
 
-.otp-timer {
+.otp-resend-text {
   text-align: center; font-size: 13px; color: var(--text-muted);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+}
+.otp-resend-link {
+  background: none; border: none; padding: 0;
+  font-family: 'Nunito', sans-serif; font-size: 13px;
+  font-weight: 800; color: var(--blue); cursor: pointer;
+  transition: opacity 0.2s;
+}
+.otp-resend-link:disabled { color: var(--text-muted); cursor: not-allowed; opacity: 0.6; }
+
+.otp-timer {
+  text-align: center; font-size: 12px; color: var(--text-muted);
+  margin-bottom: 4px;
 }
 .otp-timer span { font-weight: 800; color: var(--blue); }
 
