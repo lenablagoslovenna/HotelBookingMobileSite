@@ -924,5 +924,235 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       option.querySelector('.radio-dot').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>';
     }
+    // =============================================
+//  PAYMENT / CARD MANAGEMENT — PATCH
+//  Drop this into your app.js replacing the
+//  relevant sections, or merge manually.
+// =============================================
+
+// ── CARD STORAGE ─────────────────────────────
+function cardKey() {
+  const uid = currentUser?.guestId || 'guest';
+  return `ss_cards_${uid}`;
+}
+
+function loadCards() {
+  try { return JSON.parse(localStorage.getItem(cardKey()) || '[]'); } catch { return []; }
+}
+
+function saveCards(cards) {
+  localStorage.setItem(cardKey(), JSON.stringify(cards));
+}
+
+// ── ADD CARD ──────────────────────────────────
+function doAddCard() {
+  const rawNumber = (document.getElementById('card-number-input')?.value || '').replace(/\s/g, '');
+  const name      = (document.getElementById('card-name-input')?.value || '').trim();
+  const mm        = parseInt(document.getElementById('card-mm')?.value || '0', 10);
+  const yy        = parseInt(document.getElementById('card-yy')?.value || '0', 10);
+  const cvv       = (document.getElementById('card-cvv')?.value || '').trim();
+
+  // Validate
+  if (rawNumber.length < 13) { showError('Введите корректный номер карты'); return; }
+  if (!name)                  { showError('Введите имя держателя карты'); return; }
+  if (!mm || mm < 1 || mm > 12) { showError('Введите корректный месяц (01–12)'); return; }
+  if (!yy || yy < 1)          { showError('Введите год истечения срока'); return; }
+  if (!cvv || cvv.length < 3) { showError('Введите CVV код (3–4 цифры)'); return; }
+
+  // Expiry check
+  const now = new Date();
+  const fullYear = 2000 + yy;
+  const expDate  = new Date(fullYear, mm - 1, 1); // first day of expiry month
+  // Card valid through end of that month
+  expDate.setMonth(expDate.getMonth() + 1);
+  if (expDate <= now) {
+    showError('Срок действия карты истёк. Пожалуйста, используйте действующую карту.');
+    return;
+  }
+
+  // Detect type
+  let type = 'VISA';
+  if (/^5[1-5]|^2[2-7]/.test(rawNumber)) type = 'MC';
+  else if (/^3[47]/.test(rawNumber))       type = 'AMEX';
+  else if (/^4/.test(rawNumber))            type = 'VISA';
+
+  const last4 = rawNumber.slice(-4);
+  const cards = loadCards();
+  const card  = {
+    id:     Date.now(),
+    type,
+    last4,
+    name:   name.toUpperCase(),
+    mm:     String(mm).padStart(2, '0'),
+    yy:     String(yy).padStart(2, '0'),
+  };
+  cards.push(card);
+  saveCards(cards);
+
+  showSuccess('Карта добавлена!');
+
+  // Clear form
+  ['card-number-input','card-name-input','card-mm','card-yy','card-cvv'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const last4El = document.getElementById('preview-last4');
+  if (last4El) last4El.textContent = '0000';
+  const nameEl = document.getElementById('preview-name');
+  if (nameEl) nameEl.textContent = 'FULL NAME';
+  const expEl = document.getElementById('preview-exp');
+  if (expEl) expEl.textContent = 'MM/YY';
+  const logoEl = document.getElementById('card-type-logo');
+  if (logoEl) logoEl.textContent = 'VISA';
+
+  navigate('page-payment');
+}
+
+// ── RENDER PAYMENT PAGE ───────────────────────
+function renderPaymentPage() {
+  const cards = loadCards();
+  const container = document.getElementById('payment-cards-section');
+  if (!container) return;
+
+  const payFooter  = document.getElementById('pay-footer-area');
+  const summaryBox = document.getElementById('pay-summary-box');
+
+  if (cards.length === 0) {
+    // Empty state — no Pay Now button
+    container.innerHTML = `
+      <div class="pay-empty-state">
+        <div class="pay-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="1.5" width="36" height="36">
+            <rect x="2" y="5" width="20" height="14" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
+        </div>
+        <p class="pay-empty-title">Нет сохранённых карт</p>
+        <p class="pay-empty-sub">Добавьте карту, чтобы продолжить оплату</p>
+        <button class="add-card-row" style="margin-top:12px" onclick="navigate('page-addcard')">
+          <div class="add-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="18" height="18">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+          <span>Добавить новую карту</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" width="16" height="16" style="margin-left:auto">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </div>`;
+    if (payFooter) payFooter.style.display = 'none';
+    return;
+  }
+
+  // Has cards
+  if (payFooter) payFooter.style.display = '';
+
+  let html = `<div class="pay-section-title">Выберите карту</div>
+    <div class="pay-section-sub">Выберите сохранённую карту для оплаты.</div>
+    <div class="card-options" id="card-options-list">`;
+
+  cards.forEach((c, idx) => {
+    const active = idx === 0 ? 'active' : '';
+    const radioSvg = idx === 0
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/></svg>`;
+    const logoSvg = c.type === 'MC'
+      ? `<svg viewBox="0 0 38 24" width="28" height="18"><rect width="38" height="24" rx="4" fill="#f3f4f6"/><circle cx="15" cy="12" r="7" fill="#eb001b" opacity="0.9"/><circle cx="23" cy="12" r="7" fill="#f79e1b" opacity="0.9"/></svg>`
+      : `<svg viewBox="0 0 38 24" width="28" height="18"><rect width="38" height="24" rx="4" fill="#1a56db"/><text x="19" y="16" text-anchor="middle" fill="white" font-family="Arial" font-size="11" font-weight="bold">VISA</text></svg>`;
+    const typeName = c.type === 'MC' ? 'Mastercard' : c.type === 'AMEX' ? 'Amex' : 'Visa';
+
+    html += `
+      <label class="card-option ${active}" onclick="selectCard(this)" data-card-id="${c.id}">
+        <div class="card-option-icon">${logoSvg}</div>
+        <div class="card-option-info">
+          <strong>${typeName} •••• ${c.last4}</strong>
+          <span>Истекает ${c.mm}/${c.yy}</span>
+        </div>
+        <div class="radio-dot">${radioSvg}</div>
+      </label>`;
+  });
+
+  html += `</div>
+    <button class="add-card-row" onclick="navigate('page-addcard')">
+      <div class="add-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="18" height="18">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </div>
+      <span>Добавить новую карту</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" width="16" height="16" style="margin-left:auto">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>`;
+
+  container.innerHTML = html;
+}
+
+function selectCard(el) {
+  document.querySelectorAll('#card-options-list .card-option').forEach(o => {
+    o.classList.remove('active');
+    const dot = o.querySelector('.radio-dot');
+    if (dot) dot.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/></svg>`;
+  });
+  el.classList.add('active');
+  const dot = el.querySelector('.radio-dot');
+  if (dot) dot.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>`;
+}
+
+// ── EXPIRY VALIDATION IN ADD CARD FORM ────────
+function validateExpiry() {
+  const mm = parseInt(document.getElementById('card-mm')?.value || '0', 10);
+  const yy = parseInt(document.getElementById('card-yy')?.value || '0', 10);
+  const errEl = document.getElementById('expiry-error');
+  if (!mm || !yy) { if (errEl) errEl.textContent = ''; return; }
+
+  const now = new Date();
+  const fullYear = 2000 + yy;
+  const expDate  = new Date(fullYear, mm - 1, 1);
+  expDate.setMonth(expDate.getMonth() + 1);
+
+  if (mm < 1 || mm > 12) {
+    if (errEl) errEl.textContent = 'Введите месяц 01–12';
+    return;
+  }
+  if (expDate <= now) {
+    if (errEl) errEl.textContent = '❌ Срок действия истёк';
+    document.getElementById('card-mm').style.borderColor = '#ef4444';
+    document.getElementById('card-yy').style.borderColor = '#ef4444';
+  } else {
+    if (errEl) errEl.textContent = '✓ Действительна';
+    errEl.style.color = '#22c55e';
+    document.getElementById('card-mm').style.borderColor = '';
+    document.getElementById('card-yy').style.borderColor = '';
+  }
+}
+
+// ── CARD TYPE DETECTION (updated for MC) ──────
+function formatCardNumber(input) {
+  let val = input.value.replace(/\D/g, '').slice(0, 16);
+  input.value = val.replace(/(.{4})/g, '$1 ').trim();
+
+  const last4El = document.getElementById('preview-last4');
+  if (last4El) last4El.textContent = val.length >= 4 ? val.slice(-4) : (val + '0000').slice(0, 4);
+
+  const logo = document.getElementById('card-type-logo');
+  if (logo) {
+    if (/^5[1-5]|^2[2-7]/.test(val))  logo.textContent = 'MC';
+    else if (/^3[47]/.test(val))        logo.textContent = 'AMEX';
+    else if (/^4/.test(val))            logo.textContent = 'VISA';
+    else                                logo.textContent = 'VISA';
+  }
+
+  // Update card preview background for MC
+  const preview = document.getElementById('card-preview');
+  if (preview) {
+    if (/^5[1-5]|^2[2-7]/.test(val)) {
+      preview.style.background = 'linear-gradient(135deg, #1d1d1d 0%, #3d3d3d 60%, #111 100%)';
+    } else {
+      preview.style.background = 'linear-gradient(135deg, #1a56db 0%, #1446b8 60%, #0f3490 100%)';
+    }
+  }
+}
   });
 });
