@@ -902,3 +902,19 @@ html, body {
   border-color: var(--blue); color: var(--blue); cursor: pointer;
 }
 .btn-resend:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Checkbox error highlight ── */
+.checkbox-error {
+  color: #ef4444;
+  animation: shake 0.35s ease;
+}
+.checkbox-error .custom-check {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+.checkbox-error a { color: #ef4444; }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(-5px); }
+  75%      { transform: translateX(5px); }
+}
