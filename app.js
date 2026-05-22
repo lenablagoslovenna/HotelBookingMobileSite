@@ -312,10 +312,20 @@ function startOtpTimer(seconds = 120) {
 function otpNext(input, idx) {
   input.value = input.value.replace(/\D/g, '').slice(0, 1);
   input.classList.toggle('filled', input.value !== '');
+  input.classList.remove('error');
   if (input.value && idx < 5) {
     document.getElementById('otp' + (idx + 1))?.focus();
   }
-  // Backspace support via keydown — handled below
+}
+
+function otpBackspace(e, idx) {
+  if (e.key === 'Backspace') {
+    const cur = document.getElementById('otp' + idx);
+    if (cur && cur.value === '' && idx > 0) {
+      const prev = document.getElementById('otp' + (idx - 1));
+      if (prev) { prev.value = ''; prev.classList.remove('filled'); prev.focus(); }
+    }
+  }
 }
 
 document.addEventListener('keydown', function(e) {
@@ -341,14 +351,14 @@ function doVerifyCode() {
     showError('Неверный код. Попробуйте снова.');
     for (let i = 0; i < 6; i++) {
       const inp = document.getElementById('otp' + i);
-      if (inp) { inp.classList.add('filled'); inp.style.borderColor = '#ef4444'; }
+      if (inp) { inp.classList.add('error'); inp.classList.remove('filled'); }
     }
     setTimeout(() => {
       for (let i = 0; i < 6; i++) {
         const inp = document.getElementById('otp' + i);
-        if (inp) inp.style.borderColor = '';
+        if (inp) inp.classList.remove('error');
       }
-    }, 800);
+    }, 900);
     return;
   }
   clearInterval(_otpTimerInterval);
