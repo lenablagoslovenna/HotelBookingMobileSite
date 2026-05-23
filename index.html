@@ -6,6 +6,38 @@
   <title>Eassy Travel</title>
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* Fix: expiry + cvv row fits on one line without horizontal scroll */
+    .expiry-cvv-row {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 10px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .expiry-cvv-row .form-group {
+      min-width: 0 !important;
+      flex-shrink: 1 !important;
+    }
+    .expiry-cvv-row .expiry-pair {
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+    }
+    .expiry-cvv-row .expiry-half {
+      min-width: 0 !important;
+      flex: 1 !important;
+    }
+    .expiry-cvv-row .expiry-half input {
+      width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+    .expiry-cvv-row .input-wrap input {
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+  </style>
 </head>
 <body>
 
@@ -534,18 +566,13 @@
       <div style="width:32px"></div>
     </div>
     <div class="page-scroll">
-
-      <!-- Динамический блок карт — заполняется через renderPaymentPage() -->
       <div id="payment-cards-section"></div>
-
       <div class="pay-security-note" style="margin-top:12px">
         <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="1.8" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         <span>Your payment information is encrypted and securely processed by Eassy Travel's premium banking partners.</span>
       </div>
       <div style="height:100px"></div>
     </div>
-
-    <!-- Pay Now footer — скрыт пока нет карт -->
     <div class="pay-footer" id="pay-footer-area" style="display:none">
       <button class="btn-primary pay-now-btn" onclick="doPayNow()">
         <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" width="18" height="18"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
@@ -598,7 +625,7 @@
       </div>
       <div class="card-preview-caption">Live Preview</div>
 
-      <!-- Форма добавления карты -->
+      <!-- Card form -->
       <div class="addcard-form">
 
         <div class="form-group">
@@ -617,34 +644,39 @@
           </div>
         </div>
 
-        <div class="expiry-cvv-row">
-          <div class="form-group" style="flex:1.4">
+        <!-- FIXED: Expiry + CVV row — all three fields fit on one line, no horizontal scroll -->
+        <div class="expiry-cvv-row" style="display:flex;flex-direction:row;gap:10px;width:100%;box-sizing:border-box;">
+
+          <div class="form-group" style="flex:1.5;min-width:0;">
             <label class="form-label">EXPIRY DATE</label>
-            <div class="expiry-pair">
-              <div class="input-wrap expiry-half">
+            <div class="expiry-pair" style="display:flex;align-items:center;gap:4px;">
+              <div class="input-wrap expiry-half" style="flex:1;min-width:0;">
                 <input type="text" id="card-mm" placeholder="MM" maxlength="2" inputmode="numeric"
-                       oninput="updateExpiry();validateExpiry()" autocomplete="cc-exp-month">
+                       oninput="updateExpiry();validateExpiry()" autocomplete="cc-exp-month"
+                       style="width:100%;min-width:0;box-sizing:border-box;">
               </div>
-              <span style="align-self:center;color:#9ca3af;font-weight:700">/</span>
-              <div class="input-wrap expiry-half">
+              <span style="align-self:center;color:#9ca3af;font-weight:700;flex-shrink:0;">/</span>
+              <div class="input-wrap expiry-half" style="flex:1;min-width:0;">
                 <input type="text" id="card-yy" placeholder="YY" maxlength="2" inputmode="numeric"
-                       oninput="updateExpiry();validateExpiry()" autocomplete="cc-exp-year">
+                       oninput="updateExpiry();validateExpiry()" autocomplete="cc-exp-year"
+                       style="width:100%;min-width:0;box-sizing:border-box;">
               </div>
             </div>
             <p id="expiry-error" class="form-hint" style="min-height:16px;transition:color 0.2s"></p>
           </div>
 
-          <div class="form-group" style="flex:1">
+          <div class="form-group" style="flex:1;min-width:0;">
             <label class="form-label">CVV / CVC</label>
-            <div class="input-wrap">
+            <div class="input-wrap" style="min-width:0;">
               <input type="password" id="card-cvv" placeholder="•••" maxlength="4" inputmode="numeric"
-                     autocomplete="cc-csc" style="letter-spacing:3px">
-              <button class="eye-btn" onclick="togglePass('card-cvv',this)" style="color:#9ca3af">
+                     autocomplete="cc-csc" style="letter-spacing:3px;width:100%;min-width:0;box-sizing:border-box;">
+              <button class="eye-btn" onclick="togglePass('card-cvv',this)" style="color:#9ca3af;flex-shrink:0;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
               </button>
             </div>
             <p class="form-hint" style="min-height:16px">3–4 digits on back</p>
           </div>
+
         </div>
 
         <div class="pay-security-note" style="margin-top:4px">
