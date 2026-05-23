@@ -848,6 +848,7 @@ function doAddCard() {
 
   showSuccess('Карта добавлена!');
 
+  // Сброс формы
   ['card-number-input','card-name-input','card-mm','card-yy','card-cvv'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -860,6 +861,8 @@ function doAddCard() {
   if (expEl) expEl.textContent = 'MM/YY';
   const logoEl = document.getElementById('card-type-logo');
   if (logoEl) logoEl.textContent = 'VISA';
+  const preview = document.getElementById('card-preview');
+  if (preview) preview.style.background = 'linear-gradient(135deg, #1a56db 0%, #1446b8 60%, #0f3490 100%)';
 
   navigate('page-payment');
 }
@@ -873,6 +876,7 @@ function renderPaymentPage() {
   const payFooter = document.getElementById('pay-footer-area');
 
   if (cards.length === 0) {
+    // Пустое состояние — показываем кнопку добавить карту
     container.innerHTML = `
       <div class="pay-empty-state">
         <div class="pay-empty-icon">
@@ -881,15 +885,15 @@ function renderPaymentPage() {
             <line x1="2" y1="10" x2="22" y2="10"/>
           </svg>
         </div>
-        <p class="pay-empty-title">Нет сохранённых карт</p>
-        <p class="pay-empty-sub">Добавьте карту, чтобы продолжить оплату</p>
+        <p class="pay-empty-title">No saved cards</p>
+        <p class="pay-empty-sub">Add a card to continue with payment</p>
         <button class="add-card-row" style="margin-top:12px" onclick="navigate('page-addcard')">
           <div class="add-card-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="18" height="18">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
           </div>
-          <span>Добавить новую карту</span>
+          <span>Add New Card</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" width="16" height="16" style="margin-left:auto">
             <path d="M9 18l6-6-6-6"/>
           </svg>
@@ -899,10 +903,12 @@ function renderPaymentPage() {
     return;
   }
 
+  // Есть карты
   if (payFooter) payFooter.style.display = '';
 
-  let html = `<div class="pay-section-title">Выберите карту</div>
-    <div class="pay-section-sub">Выберите сохранённую карту для оплаты.</div>
+  let html = `
+    <div class="pay-section-title">Select Card</div>
+    <div class="pay-section-sub">Choose a saved card for payment.</div>
     <div class="card-options" id="card-options-list">`;
 
   cards.forEach((c, idx) => {
@@ -912,6 +918,8 @@ function renderPaymentPage() {
       : `<svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/></svg>`;
     const logoSvg = c.type === 'MC'
       ? `<svg viewBox="0 0 38 24" width="28" height="18"><rect width="38" height="24" rx="4" fill="#f3f4f6"/><circle cx="15" cy="12" r="7" fill="#eb001b" opacity="0.9"/><circle cx="23" cy="12" r="7" fill="#f79e1b" opacity="0.9"/></svg>`
+      : c.type === 'AMEX'
+      ? `<svg viewBox="0 0 38 24" width="28" height="18"><rect width="38" height="24" rx="4" fill="#2E77BC"/><text x="19" y="16" text-anchor="middle" fill="white" font-family="Arial" font-size="9" font-weight="bold">AMEX</text></svg>`
       : `<svg viewBox="0 0 38 24" width="28" height="18"><rect width="38" height="24" rx="4" fill="#1a56db"/><text x="19" y="16" text-anchor="middle" fill="white" font-family="Arial" font-size="11" font-weight="bold">VISA</text></svg>`;
     const typeName = c.type === 'MC' ? 'Mastercard' : c.type === 'AMEX' ? 'Amex' : 'Visa';
 
@@ -920,7 +928,7 @@ function renderPaymentPage() {
         <div class="card-option-icon">${logoSvg}</div>
         <div class="card-option-info">
           <strong>${typeName} •••• ${c.last4}</strong>
-          <span>Истекает ${c.mm}/${c.yy}</span>
+          <span>Expires ${c.mm}/${c.yy}</span>
         </div>
         <div class="radio-dot">${radioSvg}</div>
       </label>`;
@@ -933,7 +941,7 @@ function renderPaymentPage() {
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
       </div>
-      <span>Добавить новую карту</span>
+      <span>Add New Card</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" width="16" height="16" style="margin-left:auto">
         <path d="M9 18l6-6-6-6"/>
       </svg>
@@ -954,7 +962,7 @@ function selectCard(el) {
 }
 
 function doPayNow() {
-  showSuccess('Оплата прошла успешно!');
+  showSuccess('Payment successful!');
   navigate('page-bookings');
 }
 
@@ -971,17 +979,21 @@ function validateExpiry() {
   expDate.setMonth(expDate.getMonth() + 1);
 
   if (mm < 1 || mm > 12) {
-    if (errEl) errEl.textContent = 'Введите месяц 01–12';
+    if (errEl) { errEl.textContent = 'Enter month 01–12'; errEl.style.color = '#ef4444'; }
     return;
   }
   if (expDate <= now) {
-    if (errEl) { errEl.textContent = '❌ Срок действия истёк'; errEl.style.color = '#ef4444'; }
-    document.getElementById('card-mm').style.borderColor = '#ef4444';
-    document.getElementById('card-yy').style.borderColor = '#ef4444';
+    if (errEl) { errEl.textContent = '❌ Card has expired'; errEl.style.color = '#ef4444'; }
+    const mmEl = document.getElementById('card-mm');
+    const yyEl = document.getElementById('card-yy');
+    if (mmEl) mmEl.style.borderColor = '#ef4444';
+    if (yyEl) yyEl.style.borderColor = '#ef4444';
   } else {
-    if (errEl) { errEl.textContent = '✓ Действительна'; errEl.style.color = '#22c55e'; }
-    document.getElementById('card-mm').style.borderColor = '';
-    document.getElementById('card-yy').style.borderColor = '';
+    if (errEl) { errEl.textContent = '✓ Valid'; errEl.style.color = '#22c55e'; }
+    const mmEl = document.getElementById('card-mm');
+    const yyEl = document.getElementById('card-yy');
+    if (mmEl) mmEl.style.borderColor = '';
+    if (yyEl) yyEl.style.borderColor = '';
   }
 }
 
@@ -1024,7 +1036,6 @@ function updateExpiry() {
 
 // ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Устанавливаем аватар везде
   document.querySelectorAll('img.avatar, img.profile-avatar').forEach(img => {
     img.src = AVATAR_URL;
     img.onerror = function() { this.style.background = '#e5e7eb'; this.style.display = 'none'; };
