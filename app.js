@@ -2,36 +2,33 @@
 //  SANCTUARY STAY — App Logic + API Integration
 // =============================================
 
-// ── НАСТРОЙКИ API ─────────────────────────────
-// Измени этот адрес если порт отличается!
 const API_BASE = 'https://hotelbookingapi-production-437c.up.railway.app';
-// ── СОСТОЯНИЕ ПРИЛОЖЕНИЯ ──────────────────────
-let authToken    = null;   // JWT токен после логина
-let currentUser  = null;   // { guestId, firstName, lastName, email }
-let allHotels    = [];     // список отелей из БД
-let selectedHotel = null;  // выбранный отель для детальной страницы
 
-// ── НАВИГАЦИЯ ─────────────────────────────────
+let authToken    = null;
+let currentUser  = null;
+let allHotels    = [];
+let selectedHotel = null;
+
+const AVATAR_URL = 'https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/public/hotel-images/profile.png';
+
 const history_stack = [];
 
-// Mapping: which tab should be highlighted for each page
 const TAB_MAP = {
-  'page-explore':   0,  // Explore
-  'page-map':       0,  // also under Explore
-  'page-hotel':     0,  // hotel detail — Explore tab
-  'page-search':    0,  // search results — Explore tab
+  'page-explore':   0,
+  'page-map':       0,
+  'page-hotel':     0,
+  'page-search':    0,
   'page-filters':   0,
-  'page-bookings':  1,  // Bookings
-  'page-payment':   1,  // payment — Bookings tab
+  'page-bookings':  1,
+  'page-payment':   1,
   'page-addcard':   1,
-  'page-favorites': 2,  // Favorites
-  'page-profile':   3,  // Profile
+  'page-favorites': 2,
+  'page-profile':   3,
 };
 
 function syncTabBar(pageId) {
   const tabIndex = TAB_MAP[pageId] ?? -1;
   if (tabIndex === -1) return;
-  // Update every tab-bar on the active page
   const activePage = document.getElementById(pageId);
   const tabBar = activePage?.querySelector('.tab-bar');
   if (!tabBar) return;
@@ -53,12 +50,12 @@ function navigate(pageId) {
 
   syncTabBar(pageId);
 
-  // Загружаем данные при открытии страниц
   if (pageId === 'page-explore')   loadHotels();
   if (pageId === 'page-bookings')  loadBookings();
   if (pageId === 'page-profile')   loadProfile();
   if (pageId === 'page-search')    loadSearchHotels();
   if (pageId === 'page-favorites') renderFavorites();
+  if (pageId === 'page-payment')   renderPaymentPage();
 }
 
 window.history.go = function(n) {
@@ -79,13 +76,11 @@ function setTab(btn, pageId) {
   navigate(pageId);
 }
 
-// ── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ───────────────────
 function showError(msg) {
   alert('❌ ' + msg);
 }
 
 function showSuccess(msg) {
-  // Простой toast — можно заменить на красивый
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#22c55e;color:white;padding:10px 20px;border-radius:20px;z-index:9999;font-weight:600;font-size:14px';
   toast.textContent = '✓ ' + msg;
@@ -98,7 +93,6 @@ function showLoading(containerId, msg = 'Загрузка...') {
   if (el) el.innerHTML = `<div style="text-align:center;padding:40px;color:#9ca3af;">${msg}</div>`;
 }
 
-// ── AUTH HELPERS ──────────────────────────────
 function saveToken(token, user) {
   authToken   = token;
   currentUser = user;
@@ -125,7 +119,6 @@ function logout() {
   navigate('page-login');
 }
 
-// Добавляем авторизационный заголовок
 function authHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -220,7 +213,7 @@ async function doLogin() {
       showError('Неверный email или пароль');
     }
   } catch (e) {
-    showError('Нет соединения с сервером. Убедитесь что API запущен в Visual Studio.');
+    showError('Нет соединения с сервером. Убедитесь что API запущен.');
   }
 }
 
@@ -241,8 +234,6 @@ function doSendCode() {
   }
 
   _forgotContact = contact;
-  // В реальном приложении здесь был бы запрос к API
-  // Для демонстрации генерируем 6-значный код локально
   _generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
   const subtitle = document.getElementById('verify-subtitle');
@@ -253,7 +244,6 @@ function doSendCode() {
     subtitle.textContent = `We sent a 6-digit code to ${masked}`;
   }
 
-  // Сброс полей OTP
   for (let i = 0; i < 6; i++) {
     const inp = document.getElementById('otp' + i);
     if (inp) { inp.value = ''; inp.classList.remove('filled'); }
@@ -262,9 +252,7 @@ function doSendCode() {
   navigate('page-verify');
   startOtpTimer();
 
-  // Показываем код в консоли (для разработки)
   console.log('%c[DEV] Verification code: ' + _generatedOtp, 'color:#1a56db;font-weight:bold;font-size:16px');
-  // В реальном приложении — убрать строку выше и отправить через API
   showSuccess(`Код отправлен на ${contact}`);
 }
 
@@ -357,7 +345,6 @@ function doResetPassword() {
   const p2 = document.getElementById('newpass2')?.value || '';
   if (p1.length < 8) { showError('Пароль должен быть не менее 8 символов'); return; }
   if (p1 !== p2) { showError('Пароли не совпадают'); return; }
-  // В реальном приложении — отправить новый пароль на сервер с токеном
   showSuccess('Пароль успешно изменён!');
   setTimeout(() => navigate('page-login'), 1200);
 }
@@ -378,11 +365,6 @@ function renderHotelsExplore(hotels) {
   const container = document.querySelector('#page-explore .page-scroll');
   if (!container) return;
 
-  // Сохраняем шапку (searchbar + section-header)
-  const searchBar     = container.querySelector('.search-bar');
-  const sectionHeader = container.querySelector('.section-header');
-
-  // Удаляем старые карточки
   container.querySelectorAll('.hotel-card-big').forEach(c => c.remove());
 
   hotels.slice(0, 5).forEach(h => {
@@ -412,12 +394,10 @@ function renderHotelsExplore(hotels) {
         </div>
       </div>`;
     container.appendChild(card);
-    // Set bg with jpg/png fallback
     const bgEl = card.querySelector(`.hotel-bg-${h.hotelId}`);
     if (bgEl) setHotelBg(bgEl, h.nazvanie || h.name);
   });
 
-  // Re-bind fav buttons
   bindFavButtons();
 }
 
@@ -474,7 +454,6 @@ async function loadSearchHotels(query = '') {
 function openHotelDetail(hotel) {
   selectedHotel = hotel;
 
-  // Обновляем данные на странице hotel
   const nameEl  = document.querySelector('.hotel-detail-name');
   const locEl   = document.querySelector('.hotel-detail-loc');
   const priceEl = document.querySelector('.res-price');
@@ -485,7 +464,6 @@ function openHotelDetail(hotel) {
   if (priceEl) priceEl.textContent = `$${hotel.priceStandard || hotel.price_standard} / night`;
   if (heroEl)  setHotelBg(heroEl, hotel.nazvanie || hotel.name);
 
-  // Обновляем блок цен
   const resBox = document.querySelector('.reservation-box');
   if (resBox) {
     resBox.innerHTML = `
@@ -524,9 +502,7 @@ function openHotelDetail(hotel) {
       </div>`;
   }
 
-  // Установить дефолтный тип номера
   window._selectedRoomType = 'Стандарт';
-
   navigate('page-hotel');
 }
 
@@ -597,11 +573,8 @@ async function loadBookings() {
   const container = document.querySelector('#page-bookings .page-scroll');
   if (!container) return;
 
-  const heading = container.querySelector('.page-heading');
-  // Убираем старые карточки
   container.querySelectorAll('.booking-card').forEach(c => c.remove());
 
-  // Показываем индикатор
   const loader = document.createElement('div');
   loader.id = 'bookings-loader';
   loader.style.cssText = 'text-align:center;padding:40px;color:#9ca3af';
@@ -672,12 +645,10 @@ async function loadProfile() {
 
     const nameEl  = document.querySelector('#page-profile h2');
     const emailEl = document.querySelector('#page-profile .profile-email');
-    const avatarEl = document.querySelector('#page-profile .profile-avatar');
 
     if (nameEl)  nameEl.textContent  = user.firstName + ' ' + user.lastName;
     if (emailEl) emailEl.textContent = user.email;
 
-    // Считаем брони
     const bRes  = await fetch(`${API_BASE}/api/bookings`, { headers: authHeaders() });
     const bList = await bRes.json();
     const bookingCountEl = document.querySelector('#page-profile .stat:first-child strong');
@@ -714,8 +685,7 @@ function setHotelBg(el, name) {
   el.style.backgroundImage = `url('${url}')`;
 }
 
-// ── UI УТИЛИТЫ (из оригинального файла) ──────
-
+// ── UI УТИЛИТЫ ────────────────────────────────
 function togglePass(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -734,8 +704,6 @@ function updatePriceLabel(slider) {
 }
 
 // ── FAVORITES SYSTEM ──────────────────────────
-// Stored in localStorage keyed by user id so each user has their own set.
-
 function favKey() {
   const uid = currentUser?.guestId || 'guest';
   return `ss_favs_${uid}`;
@@ -763,7 +731,6 @@ function toggleFav(hotel) {
   }
   saveFavs(favs);
   renderFavorites();
-  // Update all fav buttons for this hotel across the page
   document.querySelectorAll(`.fav-btn[data-hotel-id="${hotel.hotelId}"]`).forEach(btn => {
     updateFavBtnState(btn, isFav(hotel.hotelId));
   });
@@ -808,7 +775,6 @@ function renderFavorites() {
     if (imgEl) setHotelBg(imgEl, name);
     list.appendChild(item);
   });
-  // Update favorites count on profile
   const favCountEl = document.querySelector('#page-profile .stat:nth-child(2) strong');
   if (favCountEl) favCountEl.textContent = favs.length;
 }
@@ -824,111 +790,6 @@ function bindFavButtons() {
     };
   });
 }
-
-function formatCardNumber(input) {
-  let val = input.value.replace(/\D/g, '').slice(0, 16);
-  input.value = val.replace(/(.{4})/g, '$1 ').trim();
-  const el = document.getElementById('preview-last4');
-  if (el) el.textContent = val.length >= 4 ? val.slice(-4) : (val + '0000').slice(0, 4);
-  const logo = document.getElementById('card-type-logo');
-  if (logo) {
-    if (val.startsWith('4')) logo.textContent = 'VISA';
-    else if (val.startsWith('5') || val.startsWith('2')) logo.textContent = 'MC';
-    else if (val.startsWith('3')) logo.textContent = 'AMEX';
-    else logo.textContent = 'VISA';
-  }
-}
-
-function updateCardName(input) {
-  const el = document.getElementById('preview-name');
-  if (el) el.textContent = input.value.toUpperCase() || 'FULL NAME';
-}
-
-function updateExpiry() {
-  const mm = document.getElementById('card-mm')?.value || 'MM';
-  const yy = document.getElementById('card-yy')?.value || 'YY';
-  const el = document.getElementById('preview-exp');
-  if (el) el.textContent = mm + '/' + yy;
-}
-
-// ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // Если есть сохранённый токен — идём сразу на главную
-  if (loadSavedToken()) {
-    navigate('page-explore');
-  } else {
-    navigate('page-register');
-  }
-
-  // Кнопки Register и Login
-  const regBtn = document.getElementById('reg-btn') || document.querySelector('#page-register .btn-primary');
-  if (regBtn) regBtn.onclick = doRegister;
-
-  const loginBtn = document.getElementById('login-btn') || document.querySelector('#page-login .btn-primary');
-  if (loginBtn) loginBtn.onclick = doLogin;
-
-  // Кнопка Book Now
-  const bookBtn = document.querySelector('.book-btn');
-  if (bookBtn) bookBtn.onclick = doBooking;
-
-  // Sign Out
-  const signOutBtn = document.querySelector('#page-profile .profile-menu button:last-child');
-  if (signOutBtn) signOutBtn.onclick = logout;
-
-  // Star / amenity / chip toggles
-  document.querySelectorAll('.star-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      this.closest('.star-rating-row')?.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-    });
-  });
-
-  document.querySelectorAll('.amenity-btn').forEach(btn => {
-    btn.addEventListener('click', function() { this.classList.toggle('active'); });
-  });
-
-  document.querySelectorAll('.filter-chips .chip, .sort-chips .chip').forEach(chip => {
-    chip.addEventListener('click', function() {
-      this.closest('.filter-chips, .sort-chips')?.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-      this.classList.add('active');
-    });
-  });
-
-  document.querySelectorAll('.property-card').forEach(card => {
-    card.addEventListener('click', function(e) {
-      e.stopPropagation();
-      document.querySelectorAll('.property-card').forEach(c => c.classList.remove('active'));
-      this.classList.add('active');
-    });
-  });
-
-  bindFavButtons();
-
-  // Terms checkbox
-  const termsCheck = document.getElementById('terms-check');
-  if (termsCheck) {
-    termsCheck.addEventListener('change', function() {
-      const btn = document.querySelector('#page-register .btn-primary');
-      if (btn) btn.style.opacity = this.checked ? '1' : '0.6';
-    });
-  }
-
-  // Payment card selection
-  document.addEventListener('click', function(e) {
-    const option = e.target.closest('.card-option');
-    if (option) {
-      document.querySelectorAll('.card-option').forEach(o => o.classList.remove('active'));
-      option.classList.add('active');
-      document.querySelectorAll('.radio-dot').forEach(d => {
-        d.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/></svg>';
-      });
-      option.querySelector('.radio-dot').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>';
-    }
-    // =============================================
-//  PAYMENT / CARD MANAGEMENT — PATCH
-//  Drop this into your app.js replacing the
-//  relevant sections, or merge manually.
-// =============================================
 
 // ── CARD STORAGE ─────────────────────────────
 function cardKey() {
@@ -952,25 +813,21 @@ function doAddCard() {
   const yy        = parseInt(document.getElementById('card-yy')?.value || '0', 10);
   const cvv       = (document.getElementById('card-cvv')?.value || '').trim();
 
-  // Validate
   if (rawNumber.length < 13) { showError('Введите корректный номер карты'); return; }
   if (!name)                  { showError('Введите имя держателя карты'); return; }
   if (!mm || mm < 1 || mm > 12) { showError('Введите корректный месяц (01–12)'); return; }
   if (!yy || yy < 1)          { showError('Введите год истечения срока'); return; }
   if (!cvv || cvv.length < 3) { showError('Введите CVV код (3–4 цифры)'); return; }
 
-  // Expiry check
   const now = new Date();
   const fullYear = 2000 + yy;
-  const expDate  = new Date(fullYear, mm - 1, 1); // first day of expiry month
-  // Card valid through end of that month
+  const expDate  = new Date(fullYear, mm - 1, 1);
   expDate.setMonth(expDate.getMonth() + 1);
   if (expDate <= now) {
     showError('Срок действия карты истёк. Пожалуйста, используйте действующую карту.');
     return;
   }
 
-  // Detect type
   let type = 'VISA';
   if (/^5[1-5]|^2[2-7]/.test(rawNumber)) type = 'MC';
   else if (/^3[47]/.test(rawNumber))       type = 'AMEX';
@@ -979,19 +836,18 @@ function doAddCard() {
   const last4 = rawNumber.slice(-4);
   const cards = loadCards();
   const card  = {
-    id:     Date.now(),
+    id:   Date.now(),
     type,
     last4,
-    name:   name.toUpperCase(),
-    mm:     String(mm).padStart(2, '0'),
-    yy:     String(yy).padStart(2, '0'),
+    name: name.toUpperCase(),
+    mm:   String(mm).padStart(2, '0'),
+    yy:   String(yy).padStart(2, '0'),
   };
   cards.push(card);
   saveCards(cards);
 
   showSuccess('Карта добавлена!');
 
-  // Clear form
   ['card-number-input','card-name-input','card-mm','card-yy','card-cvv'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -1014,11 +870,9 @@ function renderPaymentPage() {
   const container = document.getElementById('payment-cards-section');
   if (!container) return;
 
-  const payFooter  = document.getElementById('pay-footer-area');
-  const summaryBox = document.getElementById('pay-summary-box');
+  const payFooter = document.getElementById('pay-footer-area');
 
   if (cards.length === 0) {
-    // Empty state — no Pay Now button
     container.innerHTML = `
       <div class="pay-empty-state">
         <div class="pay-empty-icon">
@@ -1045,7 +899,6 @@ function renderPaymentPage() {
     return;
   }
 
-  // Has cards
   if (payFooter) payFooter.style.display = '';
 
   let html = `<div class="pay-section-title">Выберите карту</div>
@@ -1100,7 +953,12 @@ function selectCard(el) {
   if (dot) dot.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>`;
 }
 
-// ── EXPIRY VALIDATION IN ADD CARD FORM ────────
+function doPayNow() {
+  showSuccess('Оплата прошла успешно!');
+  navigate('page-bookings');
+}
+
+// ── EXPIRY VALIDATION ────────────────────────
 function validateExpiry() {
   const mm = parseInt(document.getElementById('card-mm')?.value || '0', 10);
   const yy = parseInt(document.getElementById('card-yy')?.value || '0', 10);
@@ -1117,18 +975,16 @@ function validateExpiry() {
     return;
   }
   if (expDate <= now) {
-    if (errEl) errEl.textContent = '❌ Срок действия истёк';
+    if (errEl) { errEl.textContent = '❌ Срок действия истёк'; errEl.style.color = '#ef4444'; }
     document.getElementById('card-mm').style.borderColor = '#ef4444';
     document.getElementById('card-yy').style.borderColor = '#ef4444';
   } else {
-    if (errEl) errEl.textContent = '✓ Действительна';
-    errEl.style.color = '#22c55e';
+    if (errEl) { errEl.textContent = '✓ Действительна'; errEl.style.color = '#22c55e'; }
     document.getElementById('card-mm').style.borderColor = '';
     document.getElementById('card-yy').style.borderColor = '';
   }
 }
 
-// ── CARD TYPE DETECTION (updated for MC) ──────
 function formatCardNumber(input) {
   let val = input.value.replace(/\D/g, '').slice(0, 16);
   input.value = val.replace(/(.{4})/g, '$1 ').trim();
@@ -1144,7 +1000,6 @@ function formatCardNumber(input) {
     else                                logo.textContent = 'VISA';
   }
 
-  // Update card preview background for MC
   const preview = document.getElementById('card-preview');
   if (preview) {
     if (/^5[1-5]|^2[2-7]/.test(val)) {
@@ -1154,5 +1009,78 @@ function formatCardNumber(input) {
     }
   }
 }
+
+function updateCardName(input) {
+  const el = document.getElementById('preview-name');
+  if (el) el.textContent = input.value.toUpperCase() || 'FULL NAME';
+}
+
+function updateExpiry() {
+  const mm = document.getElementById('card-mm')?.value || 'MM';
+  const yy = document.getElementById('card-yy')?.value || 'YY';
+  const el = document.getElementById('preview-exp');
+  if (el) el.textContent = mm + '/' + yy;
+}
+
+// ── ИНИЦИАЛИЗАЦИЯ ─────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Устанавливаем аватар везде
+  document.querySelectorAll('img.avatar, img.profile-avatar').forEach(img => {
+    img.src = AVATAR_URL;
+    img.onerror = function() { this.style.background = '#e5e7eb'; this.style.display = 'none'; };
   });
+
+  if (loadSavedToken()) {
+    navigate('page-explore');
+  } else {
+    navigate('page-register');
+  }
+
+  const regBtn = document.getElementById('reg-btn') || document.querySelector('#page-register .btn-primary');
+  if (regBtn) regBtn.onclick = doRegister;
+
+  const loginBtn = document.getElementById('login-btn') || document.querySelector('#page-login .btn-primary');
+  if (loginBtn) loginBtn.onclick = doLogin;
+
+  const bookBtn = document.querySelector('.book-btn');
+  if (bookBtn) bookBtn.onclick = doBooking;
+
+  const signOutBtn = document.querySelector('#page-profile .profile-menu button:last-child');
+  if (signOutBtn) signOutBtn.onclick = logout;
+
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.closest('.star-rating-row')?.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.amenity-btn').forEach(btn => {
+    btn.addEventListener('click', function() { this.classList.toggle('active'); });
+  });
+
+  document.querySelectorAll('.filter-chips .chip, .sort-chips .chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      this.closest('.filter-chips, .sort-chips')?.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.property-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.querySelectorAll('.property-card').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  bindFavButtons();
+
+  const termsCheck = document.getElementById('terms-check');
+  if (termsCheck) {
+    termsCheck.addEventListener('change', function() {
+      const btn = document.querySelector('#page-register .btn-primary');
+      if (btn) btn.style.opacity = this.checked ? '1' : '0.6';
+    });
+  }
 });
