@@ -14,16 +14,17 @@ const AVATAR_URL = 'https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/p
 const history_stack = [];
 
 const TAB_MAP = {
-  'page-explore':   0,
-  'page-map':       0,
-  'page-hotel':     0,
-  'page-search':    0,
-  'page-filters':   0,
-  'page-bookings':  1,
-  'page-payment':   1,
-  'page-addcard':   1,
-  'page-favorites': 2,
-  'page-profile':   3,
+  'page-explore':      0,
+  'page-map':          0,
+  'page-hotel':        0,
+  'page-search':       0,
+  'page-filters':      0,
+  'page-bookings':     1,
+  'page-payment':      1,
+  'page-addcard':      1,
+  'page-favorites':    2,
+  'page-profile':      3,
+  'page-edit-profile': 3,
 };
 
 function syncTabBar(pageId) {
@@ -50,12 +51,13 @@ function navigate(pageId) {
 
   syncTabBar(pageId);
 
-  if (pageId === 'page-explore')   loadHotels();
-  if (pageId === 'page-bookings')  loadBookings();
-  if (pageId === 'page-profile')   loadProfile();
-  if (pageId === 'page-search')    loadSearchHotels();
-  if (pageId === 'page-favorites') renderFavorites();
-  if (pageId === 'page-payment')   renderPaymentPage();
+  if (pageId === 'page-explore')      loadHotels();
+  if (pageId === 'page-bookings')     loadBookings();
+  if (pageId === 'page-profile')      loadProfile();
+  if (pageId === 'page-search')       loadSearchHotels();
+  if (pageId === 'page-favorites')    renderFavorites();
+  if (pageId === 'page-payment')      renderPaymentPage();
+  if (pageId === 'page-edit-profile') loadEditProfile();
 }
 
 window.history.go = function(n) {
@@ -126,6 +128,41 @@ function authHeaders() {
   };
 }
 
+// ── PROFILE COMPLETENESS ──────────────────────
+// We store phone + idnp locally keyed by guestId
+function profileKey() {
+  const uid = currentUser?.guestId || 'guest';
+  return `ss_profile_${uid}`;
+}
+
+function loadExtraProfile() {
+  try { return JSON.parse(localStorage.getItem(profileKey()) || '{}'); } catch { return {}; }
+}
+
+function saveExtraProfile(data) {
+  localStorage.setItem(profileKey(), JSON.stringify(data));
+}
+
+function isProfileComplete() {
+  const extra = loadExtraProfile();
+  return !!(extra.phone && extra.idnp);
+}
+
+// Update all "!" badges and tab dots across every page
+function refreshProfileBadges() {
+  const incomplete = !isProfileComplete();
+
+  // Badge inside profile menu → Edit Profile button
+  document.querySelectorAll('#edit-profile-badge').forEach(el => {
+    el.classList.toggle('hidden', !incomplete);
+  });
+
+  // Red dot on Profile tab icon (all pages that have it)
+  document.querySelectorAll('.tab-profile-dot').forEach(el => {
+    el.classList.toggle('hidden', !incomplete);
+  });
+}
+
 // ── РЕГИСТРАЦИЯ ───────────────────────────────
 async function doRegister() {
   const fullName = document.getElementById('reg-fullname')?.value.trim() || '';
@@ -166,7 +203,10 @@ async function doRegister() {
     if (res.ok) {
       const data = await res.json();
       saveToken(data.token, { guestId: data.guestId, firstName, lastName, email });
+      // New registration — profile is incomplete, clear any old extra data
+      localStorage.removeItem(profileKey());
       showSuccess('Аккаунт создан!');
+      refreshProfileBadges();
       navigate('page-explore');
     } else {
       const err = await res.json();
@@ -208,6 +248,7 @@ async function doLogin() {
         email:     data.email
       });
       showSuccess('Добро пожаловать, ' + data.firstName + '!');
+      refreshProfileBadges();
       navigate('page-explore');
     } else {
       showError('Неверный email или пароль');
@@ -639,6 +680,9 @@ async function cancelBooking(bookingId) {
 async function loadProfile() {
   if (!authToken) return;
 
+  // Refresh badge state whenever profile page opens
+  refreshProfileBadges();
+
   try {
     const res  = await fetch(`${API_BASE}/api/guests/me`, { headers: authHeaders() });
     const user = await res.json();
@@ -654,9 +698,65 @@ async function loadProfile() {
     const bookingCountEl = document.querySelector('#page-profile .stat:first-child strong');
     if (bookingCountEl) bookingCountEl.textContent = bList.length;
 
+    // Favorites count
+    const favCountEl = document.querySelector('#page-profile .stat:nth-child(2) strong');
+    if (favCountEl) favCountEl.textContent = loadFavs().length;
+
   } catch (e) {
     console.error('Ошибка загрузки профиля:', e);
   }
+}
+
+// ── EDIT PROFILE PAGE ─────────────────────────
+function loadEditProfile() {
+  // Pre-fill from current user
+  const nameEl  = document.getElementById('ep-fullname');
+  const emailEl = document.getElementById('ep-email');
+  if (currentUser) {
+    if (nameEl)  nameEl.value  = ((currentUser.firstName || '') + ' ' + (currentUser.lastName || '')).trim();
+    if (emailEl) emailEl.value = currentUser.email || '';
+  }
+
+  // Pre-fill phone & idnp from local storage
+  const extra = loadExtraProfile();
+  const phoneEl = document.getElementById('ep-phone');
+  const idnpEl  = document.getElementById('ep-idnp');
+  if (phoneEl) phoneEl.value = extra.phone || '';
+  if (idnpEl)  idnpEl.value  = extra.idnp  || '';
+
+  // Show/hide the incomplete banner
+  const banner = document.getElementById('complete-profile-banner');
+  if (banner) banner.classList.toggle('hidden', isProfileComplete());
+}
+
+function doSaveProfile() {
+  const phone = (document.getElementById('ep-phone')?.value || '').trim();
+  const idnp  = (document.getElementById('ep-idnp')?.value  || '').trim();
+
+  if (!phone) { showError('Введите номер телефона'); return; }
+  if (!/^\d{7,15}$/.test(phone)) { showError('Телефон должен содержать только цифры (7–15 знаков)'); return; }
+  if (!idnp)  { showError('Введите номер ИДНП паспорта'); return; }
+  if (!/^\d{13}$/.test(idnp)) { showError('ИДНП должен содержать ровно 13 цифр'); return; }
+
+  saveExtraProfile({ phone, idnp });
+  refreshProfileBadges();
+
+  showSuccess('Профиль обновлён!');
+  setTimeout(() => history.go(-1), 800);
+}
+
+// Prevent non-numeric paste in digits-only fields
+function handleNumericPaste(event) {
+  event.preventDefault();
+  const pasted = (event.clipboardData || window.clipboardData).getData('text');
+  const digits = pasted.replace(/\D/g, '');
+  const input  = event.target;
+  const start  = input.selectionStart;
+  const end    = input.selectionEnd;
+  const current = input.value;
+  input.value = current.slice(0, start) + digits + current.slice(end);
+  // Dispatch input event so oninput handler fires
+  input.dispatchEvent(new Event('input'));
 }
 
 // ── ПОИСК ─────────────────────────────────────
@@ -876,7 +976,6 @@ function renderPaymentPage() {
   const payFooter = document.getElementById('pay-footer-area');
 
   if (cards.length === 0) {
-    // Пустое состояние — показываем кнопку добавить карту
     container.innerHTML = `
       <div class="pay-empty-state">
         <div class="pay-empty-icon">
@@ -903,7 +1002,6 @@ function renderPaymentPage() {
     return;
   }
 
-  // Есть карты
   if (payFooter) payFooter.style.display = '';
 
   let html = `
@@ -1042,6 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if (loadSavedToken()) {
+    refreshProfileBadges();
     navigate('page-explore');
   } else {
     navigate('page-register');
