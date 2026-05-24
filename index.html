@@ -37,6 +37,88 @@
       min-width: 0 !important;
       box-sizing: border-box !important;
     }
+
+    /* ── Profile incomplete badge ── */
+    .profile-incomplete-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e74c3c;
+      color: white;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+      margin-left: 6px;
+      flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(231,76,60,0.5);
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+    @keyframes badgePulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 1px 4px rgba(231,76,60,0.5); }
+      50% { transform: scale(1.15); box-shadow: 0 2px 8px rgba(231,76,60,0.7); }
+    }
+    .profile-incomplete-badge.hidden { display: none !important; }
+
+    /* Tab badge — red dot over Profile tab icon */
+    .tab-profile-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .tab-profile-dot {
+      position: absolute;
+      top: -2px;
+      right: -4px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #e74c3c;
+      border: 2px solid white;
+      display: block;
+    }
+    .tab-profile-dot.hidden { display: none !important; }
+
+    /* ── Edit Profile page ── */
+    .edit-profile-avatar-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 0 16px;
+    }
+    .edit-profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #1a56db;
+    }
+    .edit-profile-body {
+      padding: 0 20px 24px;
+    }
+    .edit-profile-section-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin: 20px 0 10px;
+      text-transform: uppercase;
+    }
+    .complete-profile-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .complete-profile-banner svg { flex-shrink: 0; margin-top: 1px; }
+    .complete-profile-banner p { font-size: 13px; color: #b91c1c; margin: 0; line-height: 1.45; }
+    .complete-profile-banner strong { display: block; font-weight: 700; margin-bottom: 2px; }
+    .complete-profile-banner.hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -256,7 +338,10 @@
         <span>Favorites</span>
       </button>
       <button class="tab" onclick="setTab(this,'page-profile')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-explore"></span>
+        </div>
         <span>Profile</span>
       </button>
     </div>
@@ -319,7 +404,10 @@
         <span>Favorites</span>
       </button>
       <button class="tab" onclick="setTab(this,'page-profile')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-map"></span>
+        </div>
         <span>Profile</span>
       </button>
     </div>
@@ -354,7 +442,13 @@
       <button class="tab active" onclick="setTab(this,'page-explore');navigate('page-explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><span>Explore</span></button>
       <button class="tab" onclick="setTab(this,'page-bookings');navigate('page-bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Bookings</span></button>
       <button class="tab" onclick="setTab(this,'page-favorites');navigate('page-favorites')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Favorites</span></button>
-      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profile</span></button>
+      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')">
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-search"></span>
+        </div>
+        <span>Profile</span>
+      </button>
     </div>
   </div>
 
@@ -470,7 +564,13 @@
       <button class="tab active" onclick="setTab(this,'page-explore');navigate('page-explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><span>Explore</span></button>
       <button class="tab" onclick="setTab(this,'page-bookings');navigate('page-bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Bookings</span></button>
       <button class="tab" onclick="setTab(this,'page-favorites');navigate('page-favorites')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Favorites</span></button>
-      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profile</span></button>
+      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')">
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-hotel"></span>
+        </div>
+        <span>Profile</span>
+      </button>
     </div>
   </div>
 
@@ -490,7 +590,13 @@
       <button class="tab" onclick="setTab(this,'page-explore');navigate('page-explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><span>Explore</span></button>
       <button class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Bookings</span></button>
       <button class="tab" onclick="setTab(this,'page-favorites');navigate('page-favorites')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Favorites</span></button>
-      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profile</span></button>
+      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')">
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-bookings"></span>
+        </div>
+        <span>Profile</span>
+      </button>
     </div>
   </div>
 
@@ -516,7 +622,13 @@
       <button class="tab" onclick="setTab(this,'page-explore');navigate('page-explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><span>Explore</span></button>
       <button class="tab" onclick="setTab(this,'page-bookings');navigate('page-bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Bookings</span></button>
       <button class="tab active"><svg viewBox="0 0 24 24" fill="#e74c3c" stroke="#e74c3c" stroke-width="2" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Favorites</span></button>
-      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profile</span></button>
+      <button class="tab" onclick="setTab(this,'page-profile');navigate('page-profile')">
+        <div class="tab-profile-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="tab-profile-dot hidden" id="tab-dot-favorites"></span>
+        </div>
+        <span>Profile</span>
+      </button>
     </div>
   </div>
 
@@ -536,14 +648,20 @@
         <p class="profile-email">user@example.com</p>
         <span class="premium-badge">✦ Premium Member</span>
       </div>
+      <!-- Stats: removed Rating -->
       <div class="profile-stats">
         <div class="stat"><strong>0</strong><span>Bookings</span></div>
         <div class="stat"><strong>0</strong><span>Favorites</span></div>
-        <div class="stat"><strong>4.9</strong><span>Rating</span></div>
       </div>
       <div class="profile-menu">
-        <button class="profile-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg> Edit Profile <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="margin-left:auto"><path d="M9 18l6-6-6-6"/></svg></button>
-        <button class="profile-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg> Notifications <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="margin-left:auto"><path d="M9 18l6-6-6-6"/></svg></button>
+        <!-- Edit Profile — badge shown if profile incomplete -->
+        <button class="profile-item" onclick="navigate('page-edit-profile')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          Edit Profile
+          <span class="profile-incomplete-badge hidden" id="edit-profile-badge">!</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="margin-left:auto"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <!-- Notifications removed -->
         <button class="profile-item" onclick="navigate('page-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> Payment Methods <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="margin-left:auto"><path d="M9 18l6-6-6-6"/></svg></button>
         <button class="profile-item" onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" width="20" height="20"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> <span style="color:#e74c3c">Sign Out</span> <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="margin-left:auto"><path d="M9 18l6-6-6-6"/></svg></button>
       </div>
@@ -553,6 +671,80 @@
       <button class="tab" onclick="setTab(this,'page-bookings');navigate('page-bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Bookings</span></button>
       <button class="tab" onclick="setTab(this,'page-favorites');navigate('page-favorites')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Favorites</span></button>
       <button class="tab active"><svg viewBox="0 0 24 24" fill="#1a56db" stroke="#1a56db" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profile</span></button>
+    </div>
+  </div>
+
+  <!-- EDIT PROFILE PAGE -->
+  <div class="page" id="page-edit-profile">
+    <div class="hotel-detail-header">
+      <button class="back-btn" onclick="history.go(-1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      </button>
+      <span class="pay-header-title">Edit Profile</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="page-scroll">
+      <!-- Avatar -->
+      <div class="edit-profile-avatar-wrap">
+        <img src="https://vvrxgzxuolhnpqlerixf.supabase.co/storage/v1/object/public/hotel-images/profile.png" alt="avatar" class="edit-profile-avatar">
+      </div>
+
+      <div class="edit-profile-body">
+        <!-- Incomplete banner -->
+        <div class="complete-profile-banner" id="complete-profile-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p><strong>Complete your profile</strong>Please add your phone number and passport ID (IDNP) to fully verify your account.</p>
+        </div>
+
+        <p class="edit-profile-section-title">Basic Info</p>
+
+        <div class="form-group">
+          <label class="form-label">FULL NAME</label>
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            <input type="text" id="ep-fullname" placeholder="Full Name">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">EMAIL ADDRESS</label>
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8l10 7 10-7"/></svg>
+            <input type="email" id="ep-email" placeholder="Email address" readonly style="opacity:0.6;cursor:not-allowed">
+          </div>
+        </div>
+
+        <p class="edit-profile-section-title">Verification Info</p>
+
+        <div class="form-group">
+          <label class="form-label">PHONE NUMBER <span style="color:#e74c3c;font-size:11px">(digits only)</span></label>
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            <input type="tel" id="ep-phone" placeholder="37360123456" inputmode="numeric"
+                   oninput="this.value=this.value.replace(/\D/g,'')"
+                   onkeypress="return /[0-9]/.test(event.key)"
+                   onpaste="handleNumericPaste(event)">
+          </div>
+          <p class="form-hint">Enter digits only, e.g. 37360123456</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">PASSPORT ID (IDNP) <span style="color:#e74c3c;font-size:11px">(digits only)</span></label>
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h4M6 12h8M6 16h4"/></svg>
+            <input type="text" id="ep-idnp" placeholder="0000000000000" maxlength="13" inputmode="numeric"
+                   oninput="this.value=this.value.replace(/\D/g,'')"
+                   onkeypress="return /[0-9]/.test(event.key)"
+                   onpaste="handleNumericPaste(event)">
+          </div>
+          <p class="form-hint">13-digit passport ID number</p>
+        </div>
+
+        <div style="height:20px"></div>
+      </div>
+    </div>
+    <div class="pay-footer">
+      <button class="btn-primary pay-now-btn" onclick="doSaveProfile()">Save Changes</button>
     </div>
   </div>
 
