@@ -742,7 +742,7 @@ async function doSaveProfile() {
   if (!guestId) { showError('Ошибка: пользователь не найден'); return; }
 
   try {
-    const res = await fetch(`${API_BASE}/api/guests/${guestId}`, {
+    const res = await fetch(`${API_BASE}/api/guests/me`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({
