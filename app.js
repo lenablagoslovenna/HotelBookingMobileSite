@@ -596,8 +596,8 @@ async function doBooking() {
 
     if (res.ok) {
       const data = await res.json();
-      window._pendingBookingData = data;
-      openPaymentModal(data);
+      showSuccess(`Бронь создана! Сумма: $${data.summa}`);
+      navigate('page-bookings');
     } else {
       const err = await res.json();
       showError(err.message || 'Ошибка бронирования');
@@ -605,135 +605,6 @@ async function doBooking() {
   } catch (e) {
     showError('Нет соединения с сервером');
   }
-}
-
-// ── PAYMENT MODAL ─────────────────────────────
-function openPaymentModal(bookingData) {
-  const overlay = document.getElementById('payment-modal-overlay');
-  if (!overlay) return;
-
-  // Render payment methods
-  const methodsContainer = document.getElementById('modal-payment-methods');
-  const cards = loadCards();
-
-  let methodsHtml = '';
-  if (cards.length > 0) {
-    cards.forEach((c, idx) => {
-      const selected = idx === 0 ? 'selected' : '';
-      const logoSvg = c.type === 'MC'
-        ? `<svg viewBox="0 0 38 24" width="32" height="20"><rect width="38" height="24" rx="4" fill="#f3f4f6"/><circle cx="15" cy="12" r="7" fill="#eb001b" opacity="0.9"/><circle cx="23" cy="12" r="7" fill="#f79e1b" opacity="0.9"/></svg>`
-        : c.type === 'AMEX'
-        ? `<svg viewBox="0 0 38 24" width="32" height="20"><rect width="38" height="24" rx="4" fill="#2E77BC"/><text x="19" y="16" text-anchor="middle" fill="white" font-family="Arial" font-size="9" font-weight="bold">AMEX</text></svg>`
-        : `<svg viewBox="0 0 38 24" width="32" height="20"><rect width="38" height="24" rx="4" fill="#1a56db"/><text x="19" y="16" text-anchor="middle" fill="white" font-family="Arial" font-size="11" font-weight="bold">VISA</text></svg>`;
-      const typeName = c.type === 'MC' ? 'Mastercard' : c.type === 'AMEX' ? 'Amex' : 'Visa';
-      methodsHtml += `
-        <div class="modal-payment-row ${selected}" onclick="selectModalCard(this)" data-card-id="${c.id}">
-          <div class="modal-radio"><div class="modal-radio-dot"></div></div>
-          ${logoSvg}
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:14px;color:#111827">${typeName} •••• ${c.last4}</div>
-            <div style="font-size:12px;color:#9ca3af">Expires ${c.mm}/${c.yy}</div>
-          </div>
-        </div>`;
-    });
-  }
-
-  methodsHtml += `
-    <button class="modal-add-card-btn" onclick="openAddCardFromModal()">
-      <div class="modal-add-card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2.5" width="18" height="18">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </div>
-      Добавить карту
-    </button>`;
-
-  if (methodsContainer) methodsContainer.innerHTML = methodsHtml;
-
-  // Render order summary
-  const summaryContainer = document.getElementById('modal-order-summary');
-  if (summaryContainer && bookingData) {
-    const roomType = bookingData.roomType || window._selectedRoomType || '—';
-    const summa    = bookingData.summa ?? '—';
-    const fee      = typeof summa === 'number' ? (summa * 0.05).toFixed(2) : '—';
-    const total    = typeof summa === 'number' ? (summa * 1.05).toFixed(2) : summa;
-    summaryContainer.innerHTML = `
-      <div style="border-top:1px solid #f3f4f6;padding-top:14px">
-        <div style="display:flex;justify-content:space-between;font-size:14px;color:#6b7280;margin-bottom:6px">
-          <span>1 номер × ${roomType}</span><span>$${summa}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:14px;color:#6b7280;margin-bottom:8px">
-          <span>Сервисный сбор</span><span>$${fee}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;color:#111827">
-          <span>Итоговая стоимость</span><span>$${total}</span>
-        </div>
-      </div>`;
-  }
-
-  // Reset terms + proceed button
-  const termsCheck = document.getElementById('modal-terms');
-  const proceedBtn  = document.getElementById('modal-proceed-btn');
-  if (termsCheck) {
-    termsCheck.checked = false;
-    termsCheck.onchange = function() {
-      const hasCard = cards.length > 0 || false;
-      const selected = document.querySelector('.modal-payment-row.selected');
-      if (proceedBtn) {
-        const enabled = this.checked && !!selected;
-        proceedBtn.disabled = !enabled;
-        proceedBtn.style.background = enabled ? '#1a56db' : '#e5e7eb';
-        proceedBtn.style.color = enabled ? 'white' : '#9ca3af';
-      }
-    };
-  }
-
-  overlay.classList.add('visible');
-  document.body.style.overflow = 'hidden';
-}
-
-function closePaymentModal(event) {
-  if (event && event.target !== document.getElementById('payment-modal-overlay')) return;
-  const overlay = document.getElementById('payment-modal-overlay');
-  if (overlay) overlay.classList.remove('visible');
-  document.body.style.overflow = '';
-}
-
-function selectModalCard(el) {
-  document.querySelectorAll('.modal-payment-row').forEach(r => r.classList.remove('selected'));
-  el.classList.add('selected');
-  // Re-evaluate proceed button
-  const termsCheck = document.getElementById('modal-terms');
-  const proceedBtn  = document.getElementById('modal-proceed-btn');
-  if (proceedBtn && termsCheck) {
-    const enabled = termsCheck.checked;
-    proceedBtn.disabled = !enabled;
-    proceedBtn.style.background = enabled ? '#1a56db' : '#e5e7eb';
-    proceedBtn.style.color = enabled ? 'white' : '#9ca3af';
-  }
-}
-
-function openAddCardFromModal() {
-  // Close modal, go to add card, and return to hotel after
-  const overlay = document.getElementById('payment-modal-overlay');
-  if (overlay) overlay.classList.remove('visible');
-  document.body.style.overflow = '';
-  window._returnToModal = true;
-  navigate('page-addcard');
-}
-
-function doModalPayment() {
-  const termsCheck = document.getElementById('modal-terms');
-  if (!termsCheck?.checked) { showError('Примите условия и положения'); return; }
-  const selected = document.querySelector('.modal-payment-row.selected');
-  if (!selected) { showError('Выберите способ оплаты'); return; }
-
-  const overlay = document.getElementById('payment-modal-overlay');
-  if (overlay) overlay.classList.remove('visible');
-  document.body.style.overflow = '';
-
-  showSuccess('Оплата прошла успешно!');
-  setTimeout(() => navigate('page-bookings'), 800);
 }
 
 // ── МОИ БРОНИ ─────────────────────────────────
@@ -858,7 +729,7 @@ function loadEditProfile() {
   if (banner) banner.classList.toggle('hidden', isProfileComplete());
 }
 
-function doSaveProfile() {
+async function doSaveProfile() {
   const phone = (document.getElementById('ep-phone')?.value || '').trim();
   const idnp  = (document.getElementById('ep-idnp')?.value  || '').trim();
 
@@ -867,11 +738,34 @@ function doSaveProfile() {
   if (!idnp)  { showError('Введите номер ИДНП паспорта'); return; }
   if (!/^\d{13}$/.test(idnp)) { showError('ИДНП должен содержать ровно 13 цифр'); return; }
 
-  saveExtraProfile({ phone, idnp });
-  refreshProfileBadges();
+  const guestId = currentUser?.guestId;
+  if (!guestId) { showError('Ошибка: пользователь не найден'); return; }
 
-  showSuccess('Профиль обновлён!');
-  setTimeout(() => history.go(-1), 800);
+  try {
+    const res = await fetch(`${API_BASE}/api/guests/${guestId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        firstName: currentUser.firstName,
+        lastName:  currentUser.lastName,
+        email:     currentUser.email,
+        phone,
+        idnp
+      })
+    });
+
+    if (res.ok) {
+      saveExtraProfile({ phone, idnp });
+      refreshProfileBadges();
+      showSuccess('Профиль обновлён!');
+      setTimeout(() => history.go(-1), 800);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showError(err.message || `Ошибка сервера: ${res.status}`);
+    }
+  } catch (e) {
+    showError('Нет соединения с сервером: ' + e.message);
+  }
 }
 
 // Prevent non-numeric paste in digits-only fields
@@ -1093,13 +987,7 @@ function doAddCard() {
   const preview = document.getElementById('card-preview');
   if (preview) preview.style.background = 'linear-gradient(135deg, #1a56db 0%, #1446b8 60%, #0f3490 100%)';
 
-  if (window._returnToModal) {
-    window._returnToModal = false;
-    history.go(-1);
-    setTimeout(() => openPaymentModal(window._pendingBookingData || {}), 300);
-  } else {
-    navigate('page-payment');
-  }
+  navigate('page-payment');
 }
 
 // ── RENDER PAYMENT PAGE ───────────────────────
